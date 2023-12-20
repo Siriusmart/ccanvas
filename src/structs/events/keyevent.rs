@@ -1,8 +1,11 @@
 use termion::event::Key as TermionKey;
 
+/// a single keyboard event
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct KeyEvent {
+    /// the keycode represented by the characetr
     code: KeyCode,
+    /// key modifiers (e.g. ctrl)
     modifier: KeyModifier,
 }
 
@@ -28,6 +31,7 @@ impl KeyEvent {
     }
 }
 
+/// a unique key (non modifier keys)
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum KeyCode {
     /// Backspace.
@@ -94,9 +98,14 @@ impl TryFrom<TermionKey> for KeyCode {
     type Error = crate::Error;
 }
 
+/// modifier keys that only exist as modifiers to the real key code
+///
+/// no shift, as it is not a real modifier
+/// check if shift might be pressed yourself using is_upper_case
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum KeyModifier {
     Alt,
+    /// note that certain keys may not be modifiable with ctrl, due to limitations of terminals.
     Ctrl,
     None,
 }

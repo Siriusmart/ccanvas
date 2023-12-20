@@ -2,7 +2,9 @@ use tokio::sync::{mpsc, oneshot};
 
 /// a packet of info, expecting response
 pub struct Packet<T, R> {
+    /// actual packet data
     message: T,
+    /// a "callback" sender
     responder: oneshot::Sender<R>,
 }
 
@@ -20,6 +22,7 @@ impl<T, R> Packet<T, R> {
         )
     }
 
+    /// send a packet to destination through an existing channel
     pub async fn send(
         self,
         channel: mpsc::Sender<Self>,

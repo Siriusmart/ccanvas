@@ -17,7 +17,7 @@ pub struct Space {
     /// name of the current space
     label: String,
 
-    /// unique identifier of the current space
+    /// unique identifier of the current space - a "path" of u32s
     discrim: Vec<u32>,
 
     /// data storage for children
@@ -45,6 +45,7 @@ impl Space {
         }
     }
 
+    /// create new self with parent discriminator
     fn new_with_parent(label: String, parent_discrim: &Vec<u32>) -> Self {
         let mut parent_discrim = parent_discrim.clone();
         parent_discrim.push(discrim());
@@ -58,6 +59,8 @@ impl Space {
         }
     }
 
+    /// start listening to all events, only the top level,
+    /// "master" space should do this
     pub async fn listen(&mut self) {
         let mut listener = Event::listen();
 

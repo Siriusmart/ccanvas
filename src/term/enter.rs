@@ -4,6 +4,7 @@ use termion::{raw::IntoRawMode, screen::IntoAlternateScreen};
 
 use crate::{structs::Event, values::SCREEN};
 
+/// run when entering
 pub fn enter() {
     let mut screen = stdout()
         .into_raw_mode()

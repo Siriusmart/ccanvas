@@ -2,11 +2,13 @@ use super::KeyEvent;
 
 use termion::event::Event as TermionEvent;
 
+/// a basic, generic unit of event
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Event {
+    /// keyboard event
     KeyPress(KeyEvent),
+    /// screen resize event (should trigger a rerender)
     ScreenResize(u32, u32),
-    Unknown(String),
 }
 
 impl TryFrom<TermionEvent> for Event {

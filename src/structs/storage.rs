@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-/// storage for a single component
+/// wrapper struct for storage of a single component
 pub struct Storage {
     path: PathBuf,
 }

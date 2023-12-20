@@ -9,9 +9,15 @@ use tokio::sync::{
 
 use super::Event;
 
+/// a copy of the broadcast sender
+///
+/// make a clone of it and you can start broadcasting events
+/// or you can subscribe to it and get a reciever to the broadcast
 static EVENTS: OnceCell<Sender<Event>> = OnceCell::const_new();
 
 impl Event {
+    /// kick start the event broadcaster
+    /// should only be called once for the entire duration of the program
     pub fn start() {
         if EVENTS.get().is_some() {
             panic!("events broadcast has already been started");
@@ -44,6 +50,8 @@ impl Event {
             let _ = EVENTS.get().unwrap().send(Event::ScreenResize(x as u32, y as u32));
         }
 
+        // listen for SIGWINCH, as it is the only way to listen for window resize event
+        // without pulling in huge dependencies
         let sig_action = signal::SigAction::new(
             SigHandler::Handler(handle_resize),
             signal::SaFlags::empty(),
