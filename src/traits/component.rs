@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 
-use crate::structs::{Event, Pool, Storage};
+use crate::structs::{Event, Pool, Storage, Discriminator};
 
 #[async_trait]
 /// a unit of "something"
@@ -9,7 +9,7 @@ pub trait Component {
     fn label(&self) -> &str;
 
     /// unique identifier which one it is
-    fn discrim(&self) -> &Vec<u32>;
+    fn discrim(&self) -> &Discriminator;
 
     /// pool of data
     fn pool(&self) -> &Pool;

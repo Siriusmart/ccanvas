@@ -1,16 +1,13 @@
-use std::{
-    io::Write,
-    path::PathBuf,
-};
+use std::io::Write;
 
 use async_trait::async_trait;
 
 use crate::{
     traits::Component,
-    values::{discrim, SCREEN},
+    values::SCREEN,
 };
 
-use super::{Collection, Event, Focus, KeyCode, KeyEvent, KeyModifier, Pool, Storage};
+use super::{Collection, Event, Focus, KeyCode, KeyEvent, KeyModifier, Passes, Pool, Storage, Discriminator, Process};
 
 /// the basic unit of display
 pub struct Space {
@@ -18,7 +15,7 @@ pub struct Space {
     label: String,
 
     /// unique identifier of the current space - a "path" of u32s
-    discrim: Vec<u32>,
+    discrim: Discriminator,
 
     /// data storage for children
     pool: Pool,
@@ -31,40 +28,39 @@ pub struct Space {
 
     /// currently in use space, could be self or children
     focus: Focus,
+
+    /// process event subscriptions in this space
+    passes: Passes,
+
+    /// process pool
+    processes: Collection<Process>,
 }
 
 impl Space {
-    pub fn new(label: String) -> Self {
-        Self {
-            storage: Storage::new(PathBuf::from(&label)),
-            label,
-            discrim: vec![discrim()],
-            pool: Pool::default(),
-            subspaces: Collection::<Self>::default(),
-            focus: Focus::default(),
-        }
+    pub async fn new(label: String) -> Self {
+        Self::new_with_parent(label, &Discriminator::default()).await
     }
 
     /// create new self with parent discriminator
-    fn new_with_parent(label: String, parent_discrim: &Vec<u32>) -> Self {
-        let mut parent_discrim = parent_discrim.clone();
-        parent_discrim.push(discrim());
+    async fn new_with_parent(label: String, parent_discrim: &Discriminator) -> Self {
         Self {
-            storage: Storage::new(PathBuf::from(&label)),
+            storage: Storage::new(&parent_discrim).await,
             label,
-            discrim: parent_discrim,
+            discrim: parent_discrim.new_child(),
             pool: Pool::default(),
-            subspaces: Collection::<Self>::default(),
+            subspaces: Collection::default(),
             focus: Focus::default(),
+            passes: Passes::default(),
+            processes: Collection::default()
         }
     }
 
     /// start listening to all events, only the top level,
     /// "master" space should do this
     pub async fn listen(&mut self) {
-        let mut listener = Event::listen();
+        let mut listener = Event::start();
 
-        while let Ok(event) = listener.recv().await {
+        while let Some(event) = listener.recv().await {
             write!(
                 unsafe { SCREEN.get_mut().unwrap() },
                 "{}{}{:?}",
@@ -77,6 +73,8 @@ impl Space {
             if event == Event::KeyPress(KeyEvent::new(KeyCode::Char('q'), KeyModifier::None)) {
                 return;
             }
+
+            let _ = self.pass(&event).await;
         }
     }
 }
@@ -87,7 +85,7 @@ impl Component for Space {
         &self.label
     }
 
-    fn discrim(&self) -> &Vec<u32> {
+    fn discrim(&self) -> &Discriminator {
         &self.discrim
     }
 
@@ -100,6 +98,24 @@ impl Component for Space {
     }
 
     async fn pass(&mut self, event: &Event) -> bool {
-        todo!()
+        match event {
+            Event::RequestMessage(req) if req.target() == self.discrim() => {} // do stuff
+            Event::RequestPacket(req) if req.get().target() == self.discrim() => {} // do stuff
+            _ => {}
+        }
+
+        let targets = self.passes.subscribers(event.subscriptions());
+
+        for target in targets {
+            if !self.processes.find_by_discrim_mut(target.discrim()).unwrap().pass(event).await {
+                return false;
+            }
+        }
+
+        if let Focus::Children(discrim) = &self.focus {
+            let _ = self.processes.find_by_discrim_mut(discrim).unwrap().pass(event);
+        }
+
+        true
     }
 }

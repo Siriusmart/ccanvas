@@ -1,11 +1,13 @@
+use serde::Serialize;
 use termion::event::Key as TermionKey;
 
 /// a single keyboard event
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize)]
 pub struct KeyEvent {
     /// the keycode represented by the characetr
     code: KeyCode,
     /// key modifiers (e.g. ctrl)
+    #[serde(flatten)]
     modifier: KeyModifier,
 }
 
@@ -32,41 +34,57 @@ impl KeyEvent {
 }
 
 /// a unique key (non modifier keys)
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize)]
 pub enum KeyCode {
     /// Backspace.
+    #[serde(rename = "backspace")]
     Backspace,
     /// Left arrow.
+    #[serde(rename = "left")]
     Left,
     /// Right arrow.
+    #[serde(rename = "right")]
     Right,
     /// Up arrow.
+    #[serde(rename = "up")]
     Up,
     /// Down arrow.
+    #[serde(rename = "down")]
     Down,
     /// Home key.
+    #[serde(rename = "home")]
     Home,
     /// End key.
+    #[serde(rename = "end")]
     End,
     /// Page Up key.
+    #[serde(rename = "pageup")]
     PageUp,
     /// Page Down key.
+    #[serde(rename = "pagedown")]
     PageDown,
     /// Backward Tab key.
+    #[serde(rename = "backtab")]
     BackTab,
     /// Delete key.
+    #[serde(rename = "delete")]
     Delete,
     /// Insert key.
+    #[serde(rename = "insert")]
     Insert,
     /// Function keys.
     ///
     /// Only function keys 1 through 12 are supported.
+    #[serde(rename = "f")]
     F(u8),
     /// Normal character.
+    #[serde(rename = "char")]
     Char(char),
     /// Null byte.
+    #[serde(rename = "null")]
     Null,
     /// Esc key.
+    #[serde(rename = "esc")]
     Esc,
 }
 
@@ -102,10 +120,13 @@ impl TryFrom<TermionKey> for KeyCode {
 ///
 /// no shift, as it is not a real modifier
 /// check if shift might be pressed yourself using is_upper_case
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize)]
 pub enum KeyModifier {
+    #[serde(rename = "alt")]
     Alt,
     /// note that certain keys may not be modifiable with ctrl, due to limitations of terminals.
+    #[serde(rename = "ctrl")]
     Ctrl,
+    #[serde(rename = "none")]
     None,
 }

@@ -1,7 +1,7 @@
 use nix::sys::signal::{self, SigHandler, Signal};
 
-use crate::values::SCREEN;
-use std::io::Write;
+use crate::values::{ROOT, SCREEN};
+use std::{fs, io::Write};
 
 /// run when exiting
 pub fn exit() {
@@ -25,4 +25,6 @@ pub fn exit() {
         )
         .unwrap();
     }
+
+    fs::remove_dir_all(ROOT.get().unwrap()).unwrap();
 }

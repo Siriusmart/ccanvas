@@ -1,6 +1,7 @@
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::oneshot;
 
 /// a packet of info, expecting response
+#[derive(Debug)]
 pub struct Packet<T, R> {
     /// actual packet data
     message: T,
@@ -22,11 +23,14 @@ impl<T, R> Packet<T, R> {
         )
     }
 
-    /// send a packet to destination through an existing channel
-    pub async fn send(
-        self,
-        channel: mpsc::Sender<Self>,
-    ) -> Result<(), mpsc::error::SendError<Self>> {
-        channel.send(self).await
+    /// returns inner conent
+    pub fn get(&self) -> &T {
+        &self.message
+    }
+}
+
+impl<T, R> PartialEq for Packet<T, R> {
+    fn eq(&self, _other: &Self) -> bool {
+        false // no 2 packets are the same
     }
 }

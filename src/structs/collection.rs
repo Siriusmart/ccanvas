@@ -1,28 +1,43 @@
-use std::{collections::HashMap, sync::Arc};
-
-use tokio::{runtime, sync::Mutex};
+use std::collections::HashMap;
 
 use crate::traits::Component;
 
+use super::Discriminator;
+
 /// a collection of component items
 pub struct Collection<T: Component> {
-    items: HashMap<Vec<u32>, Arc<Mutex<T>>>,
+    // items: HashMap<Discriminator, Arc<Mutex<T>>>,
+    items: HashMap<Discriminator, T>,
 }
 
 impl<T: Component> Collection<T> {
     /// return all items matching label
-    pub async fn find_all_by_label(&self, label: &str) -> Vec<Arc<Mutex<T>>> {
+    // pub async fn find_all_by_label(&self, label: &str) -> Vec<Arc<Mutex<T>>> {
+    //     self.items
+    //         .iter()
+    //         .filter_map(|(_, value)| {
+    //             if label
+    //                 == runtime::Builder::new_current_thread()
+    //                     .build()
+    //                     .unwrap()
+    //                     .block_on(value.lock())
+    //                     .label()
+    //             {
+    //                 Some(value.clone())
+    //             } else {
+    //                 None
+    //             }
+    //         })
+    //         .collect()
+    // }
+    pub async fn find_all_by_label(&self, label: &str) -> Vec<&T> {
         self.items
             .iter()
             .filter_map(|(_, value)| {
                 if label
-                    == runtime::Builder::new_current_thread()
-                        .build()
-                        .unwrap()
-                        .block_on(value.lock())
-                        .label()
+                    == value.label()
                 {
-                    Some(value.clone())
+                    Some(value)
                 } else {
                     None
                 }
@@ -31,27 +46,27 @@ impl<T: Component> Collection<T> {
     }
 
     /// return max one element with matching discriminator
-    pub fn find_by_discrim(&self, discrim: &Vec<u32>) -> Option<Arc<Mutex<T>>> {
-        self.items.get(discrim).map(Arc::clone)
+    pub fn find_by_discrim(&self, discrim: &Discriminator) -> Option<&T> {
+        self.items.get(discrim)
+    }
+
+    /// return max one element with matching discriminator (mutable)
+    pub fn find_by_discrim_mut(&mut self, discrim: &Discriminator) -> Option<&mut T> {
+        self.items.get_mut(discrim)
     }
 
     /// check if the item is in collection
-    pub fn contains(&self, discrim: &Vec<u32>) -> bool {
+    pub fn contains(&self, discrim: &Discriminator) -> bool {
         self.items.contains_key(discrim)
     }
 
     /// insert an item and return handle to it
-    pub fn insert(&mut self, item: T) -> Option<Arc<Mutex<T>>> {
-        self.contains(&item.discrim()).then(move || {
-            let discrim = item.discrim().to_vec();
-            let item = Arc::new(Mutex::new(item));
-            self.items.insert(discrim, item.clone());
-            item
-        })
+    pub fn insert(&mut self, item: T) -> Option<T> {
+        self.items.insert(item.discrim().clone(), item)
     }
 
     /// removes an item by discrim
-    pub fn remove(&mut self, discrim: &Vec<u32>) -> bool {
+    pub fn remove(&mut self, discrim: &Discriminator) -> bool {
         self.items.remove(discrim).is_some()
     }
 }

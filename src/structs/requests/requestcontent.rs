@@ -1,7 +1,7 @@
 use serde::Deserialize;
 
 /// variations of requests
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone, PartialEq, Eq, Debug)]
 #[serde(tag = "type")]
 pub enum RequestContent {}
 

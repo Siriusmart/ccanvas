@@ -6,3 +6,11 @@ use super::Subscription;
 pub struct Subscriptions {
     subscriptions: HashSet<Subscription>,
 }
+
+impl Default for Subscriptions {
+    fn default() -> Self {
+        Self {
+            subscriptions: HashSet::default(),
+        }
+    }
+}
