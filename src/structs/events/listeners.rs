@@ -47,7 +47,7 @@ impl Event {
         }
 
         extern "C" fn handle_resize(_: libc::c_int) {
-            let (y, x) = termion::terminal_size().unwrap();
+            let (x, y) = termion::terminal_size().unwrap();
             let _ = EVENTS
                 .get()
                 .unwrap()
@@ -68,5 +68,9 @@ impl Event {
         EVENTS.set(tx).unwrap();
 
         rx
+    }
+
+    pub fn send(event: Event) {
+        EVENTS.get().unwrap().send(event).unwrap();
     }
 }

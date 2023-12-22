@@ -1,4 +1,4 @@
-use crate::structs::{Packet, Request, Response, Subscription};
+use crate::structs::{Discriminator, Packet, Request, Response, Subscription};
 
 use super::KeyEvent;
 
@@ -11,10 +11,11 @@ pub enum Event {
     KeyPress(KeyEvent),
     /// screen resize event (should trigger a rerender)
     ScreenResize(u32, u32),
-    /// request to be passed to a target
-    RequestMessage(Request),
     /// request that requires a response
     RequestPacket(Packet<Request, Response>),
+    /// register subscription to parent space
+    /// (channel, priority, discrim)
+    RegSubscription(Subscription, Option<u32>, Discriminator),
 }
 
 impl TryFrom<TermionEvent> for Event {
@@ -33,7 +34,11 @@ impl Event {
     pub fn subscriptions(&self) -> &[Subscription] {
         match self {
             Self::KeyPress(keyevent) => &[Subscription::AllKeyPresses],
-            _ => &[]
+            _ => &[],
         }
+    }
+
+    pub fn from_packet(packet: Packet<Request, Response>) -> Self {
+        Self::RequestPacket(packet)
     }
 }

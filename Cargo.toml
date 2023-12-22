@@ -9,6 +9,7 @@ edition = "2021"
 libccanvas = { path = "../libccanvas" }
 tokio = { version = "1", features = [ "rt", "rt-multi-thread", "macros", "sync", "fs", "process" ]}
 serde = { version = "1", features = [ "derive" ] }
+serde_json = "1"
 termion = "2"
 async-trait = "0.1"
 nix = { version = "0.27", features = [ "signal" ] }

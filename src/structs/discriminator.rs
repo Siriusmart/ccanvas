@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use tokio::sync::OnceCell;
 
 static mut DISCRIM: OnceCell<u32> = OnceCell::const_new_with(0);
@@ -25,8 +25,20 @@ impl Discriminator {
         &self.0
     }
 
-    // pub fn truncate(mut self, len: usize) -> Self {
-    //     self.0.truncate(len);
-    //     self
-    // }
+    /// check if one component is a child of another
+    pub fn is_parent_of(&self, other: &Self) -> bool {
+        other.0.starts_with(&self.0) && self.0.len() < other.0.len()
+    }
+
+    /// truncate path length
+    pub fn truncate(mut self, len: usize) -> Self {
+        self.0.truncate(len);
+        self
+    }
+
+    /// return immediate chaild to pass to
+    pub fn immediate_child(&self, child: Self) -> Option<Self> {
+        self.is_parent_of(&child)
+            .then(|| child.truncate(self.0.len() + 1))
+    }
 }

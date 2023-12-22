@@ -7,7 +7,6 @@ pub struct KeyEvent {
     /// the keycode represented by the characetr
     code: KeyCode,
     /// key modifiers (e.g. ctrl)
-    #[serde(flatten)]
     modifier: KeyModifier,
 }
 

@@ -17,10 +17,9 @@ pub struct Storage {
 impl Storage {
     /// creates a new struct and the corresponding directory
     pub async fn new(discrim: &Discriminator) -> Self {
-        let path = ROOT
-            .get()
-            .unwrap()
-            .join(PathBuf::from_iter(discrim.as_vec().into_iter().map(u32::to_string)));
+        let path = ROOT.get().unwrap().join(PathBuf::from_iter(
+            discrim.as_vec().into_iter().map(u32::to_string),
+        ));
 
         if !fs::try_exists(&path).await.unwrap() {
             fs::create_dir_all(&path).await.unwrap();
@@ -49,8 +48,6 @@ impl Storage {
 impl Drop for Storage {
     fn drop(&mut self) {
         let path = self.path.clone();
-        let _ = tokio::runtime::Runtime::new()
-            .unwrap()
-            .spawn_blocking(|| fs::remove_dir_all(path));
+        let _ = tokio::task::spawn_blocking(|| fs::remove_dir_all(path));
     }
 }

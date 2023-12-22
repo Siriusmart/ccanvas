@@ -6,7 +6,7 @@ pub struct Packet<T, R> {
     /// actual packet data
     message: T,
     /// a "callback" sender
-    responder: oneshot::Sender<R>,
+    responder: Option<oneshot::Sender<R>>,
 }
 
 impl<T, R> Packet<T, R> {
@@ -17,7 +17,7 @@ impl<T, R> Packet<T, R> {
         (
             Self {
                 message,
-                responder: tx,
+                responder: Some(tx),
             },
             rx,
         )
@@ -26,6 +26,15 @@ impl<T, R> Packet<T, R> {
     /// returns inner conent
     pub fn get(&self) -> &T {
         &self.message
+    }
+
+    pub fn respond(&mut self, res: R) -> bool {
+        if let Some(resp) = std::mem::take(&mut self.responder) {
+            let _ = resp.send(res);
+            return true;
+        } else {
+            return false;
+        }
     }
 }
 

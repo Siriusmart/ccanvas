@@ -1,13 +1,13 @@
-use std::io::Write;
+use std::{error::Error, io::Write, process::Command};
 
 use async_trait::async_trait;
 
-use crate::{
-    traits::Component,
-    values::SCREEN,
-};
+use crate::{traits::Component, values::SCREEN};
 
-use super::{Collection, Event, Focus, KeyCode, KeyEvent, KeyModifier, Passes, Pool, Storage, Discriminator, Process};
+use super::{
+    Collection, Discriminator, Event, Focus, KeyCode, KeyEvent, KeyModifier, PassItem, Passes,
+    Pool, Process, Response, ResponseContent, Storage,
+};
 
 /// the basic unit of display
 pub struct Space {
@@ -51,7 +51,7 @@ impl Space {
             subspaces: Collection::default(),
             focus: Focus::default(),
             passes: Passes::default(),
-            processes: Collection::default()
+            processes: Collection::default(),
         }
     }
 
@@ -60,7 +60,7 @@ impl Space {
     pub async fn listen(&mut self) {
         let mut listener = Event::start();
 
-        while let Some(event) = listener.recv().await {
+        while let Some(mut event) = listener.recv().await {
             write!(
                 unsafe { SCREEN.get_mut().unwrap() },
                 "{}{}{:?}",
@@ -74,8 +74,19 @@ impl Space {
                 return;
             }
 
-            let _ = self.pass(&event).await;
+            let _ = self.pass(&mut event).await;
         }
+    }
+
+    pub async fn spawn(
+        &mut self,
+        label: String,
+        command: String,
+        args: Vec<String>,
+    ) -> Result<(), Box<dyn Error>> {
+        self.processes
+            .insert(Process::spawn(label, &self.discrim, command, args).await?);
+        Ok(())
     }
 }
 
@@ -97,23 +108,50 @@ impl Component for Space {
         &self.storage
     }
 
-    async fn pass(&mut self, event: &Event) -> bool {
+    async fn pass(&mut self, event: &mut Event) -> bool {
         match event {
-            Event::RequestMessage(req) if req.target() == self.discrim() => {} // do stuff
             Event::RequestPacket(req) if req.get().target() == self.discrim() => {} // do stuff
+            Event::RequestPacket(req) => {
+                if let Some(child) = self.discrim.immediate_child(req.get().target().clone()) {
+                    if let Some(proc) = self.processes.find_by_discrim_mut(&child) {
+                        proc.pass(event).await;
+                    } else if let Some(space) = self.subspaces.find_by_discrim_mut(&child) {
+                        space.pass(event).await;
+                    } else {
+                        req.respond(Response::new(ResponseContent::Undelivered));
+                    }
+
+                    return false;
+                }
+            }
+            Event::RegSubscription(sub, priority, discrim) => {
+                self.passes
+                    .subscribe(sub.clone(), PassItem::new(discrim.clone(), *priority));
+                return false;
+            }
             _ => {}
         }
 
         let targets = self.passes.subscribers(event.subscriptions());
 
         for target in targets {
-            if !self.processes.find_by_discrim_mut(target.discrim()).unwrap().pass(event).await {
+            if !self
+                .processes
+                .find_by_discrim_mut(target.discrim())
+                .unwrap()
+                .pass(event)
+                .await
+            {
                 return false;
             }
         }
 
         if let Focus::Children(discrim) = &self.focus {
-            let _ = self.processes.find_by_discrim_mut(discrim).unwrap().pass(event);
+            let _ = self
+                .processes
+                .find_by_discrim_mut(discrim)
+                .unwrap()
+                .pass(event);
         }
 
         true

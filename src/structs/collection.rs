@@ -34,9 +34,7 @@ impl<T: Component> Collection<T> {
         self.items
             .iter()
             .filter_map(|(_, value)| {
-                if label
-                    == value.label()
-                {
+                if label == value.label() {
                     Some(value)
                 } else {
                     None

@@ -1,6 +1,6 @@
 use std::collections::{hash_map::Entry, HashMap};
 
-use super::{Subscription, Discriminator};
+use super::{Discriminator, Subscription};
 
 /// a single subscription item
 #[derive(Eq, Clone)]
@@ -8,7 +8,7 @@ pub struct PassItem {
     /// 0 is highest
     /// None is lowest
     /// if there are clashes, first entry will revieve signal first
-    priority: Option<u16>,
+    priority: Option<u32>,
     /// pointer to process wrapper
     // process: Arc<Mutex<Process>>,
     /// discrim of process
@@ -18,6 +18,10 @@ pub struct PassItem {
 impl PassItem {
     pub fn discrim(&self) -> &Discriminator {
         &self.discrim
+    }
+
+    pub fn new(discrim: Discriminator, priority: Option<u32>) -> Self {
+        Self { priority, discrim }
     }
 }
 
@@ -29,7 +33,9 @@ impl PartialOrd for PassItem {
 
 impl Ord for PassItem {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.priority.partial_cmp(&other.priority).unwrap_or(std::cmp::Ordering::Equal)
+        self.priority
+            .partial_cmp(&other.priority)
+            .unwrap_or(std::cmp::Ordering::Equal)
     }
 }
 
@@ -87,11 +93,21 @@ impl Passes {
     /// sorted + no duplicates
     pub fn subscribers(&self, subscription: &[Subscription]) -> Vec<PassItem> {
         let default = Vec::default(); // wow im so good at going around ownership checks
-        let mut subscribers = subscription.into_iter().map(|sub| self.subscriptions.get(sub).unwrap_or(&default)).flatten().collect::<Vec<_>>();
+        let mut subscribers = subscription
+            .into_iter()
+            .map(|sub| self.subscriptions.get(sub).unwrap_or(&default))
+            .flatten()
+            .collect::<Vec<_>>();
         subscribers.sort();
 
         let mut out = Vec::with_capacity(subscribers.len());
-        subscribers.into_iter().for_each(|sub| if out.binary_search(sub).is_ok() { return } else { out.push(sub.to_owned()) });
+        subscribers.into_iter().for_each(|sub| {
+            if out.binary_search(sub).is_ok() {
+                return;
+            } else {
+                out.push(sub.to_owned())
+            }
+        });
 
         out
     }
