@@ -114,7 +114,33 @@ impl Component for Space {
             // i have no idea what this branch does
             // but i think it is unreachable, but shouldnt cause a panic
             // as a bad request could reach this, so for now just ignore it
-            Event::RequestPacket(req) if req.get().target() == self.discrim() => return true, // do stuff
+            Event::RequestPacket(req) if req.get().target() == self.discrim() => {
+                if let RequestContent::Subscribe {
+                    channel,
+                    priority,
+                    component: Some(discrim),
+                } = req.get().content()
+                {
+                    if let Some(child) = self.discrim.immediate_child(discrim.clone()) {
+                        if self.processes.contains(&child) {
+                            // if its a process, subscribe to the event right here
+                            self.passes.subscribe(
+                                channel.clone(),
+                                PassItem::new(discrim.clone(), *priority),
+                            );
+                            req.respond(Response::new_with_request(
+                                ResponseContent::Success {
+                                    content: ResponseSuccess::SubscribeAdded,
+                                },
+                                *req.get().id(),
+                            ))
+                            .unwrap();
+                        }
+                    }
+                }
+
+                return false;
+            } // do stuff
             Event::RequestPacket(req) => {
                 // pass the event to "next immediate child"
                 // aka the next item it should pass to in order to get the request
@@ -134,22 +160,6 @@ impl Component for Space {
                 }
                 // otherwise self is not a parent to the target component
                 // and something went wrong
-            }
-            Event::RegSubscription(sub, priority, discrim) => {
-                if let Some(child) = self.discrim.immediate_child(discrim.clone()) {
-                    if self.processes.contains(&child) {
-                        // if its a process, subscribe to the event right here
-                        self.passes
-                            .subscribe(sub.clone(), PassItem::new(discrim.clone(), *priority));
-                    } else if let Some(space) = self.subspaces.find_by_discrim_mut(&child) {
-                        // if its a process owned by a subspace
-                        // let the subspace handle it
-                        space.pass(event).await;
-                    }
-                } else {
-                    panic!("bad subscription, not delivered")
-                }
-                return false;
             }
             _ => {}
         }

@@ -212,7 +212,11 @@ impl Process {
                     ))
                     .unwrap();
             }
-            RequestContent::Subscribe { channel, priority } => {
+            RequestContent::Subscribe {
+                channel,
+                priority,
+                component: _,
+            } => {
                 if self.subscriptions.contains(channel) {
                     // if already subscribed, then return an error
                     packet
@@ -229,11 +233,15 @@ impl Process {
                     // and send a register event to the master space
                     // which is eventually get sent to the parent space
                     // and get added as into the passes
-                    Event::send(Event::RegSubscription(
-                        channel.clone(),
-                        *priority,
-                        self.discrim.clone(),
-                    ));
+                    let mut request = packet.get().clone();
+                    *request.target_mut() = self.discrim.clone().immediate_parent().unwrap();
+                    *request.content_mut() = RequestContent::Subscribe {
+                        channel: channel.clone(),
+                        priority: *priority,
+                        component: Some(self.discrim.clone()),
+                    };
+                    let (event, recv): (Packet<Request, Response>, _) = Packet::new(request);
+                    Event::send(Event::RequestPacket(event));
                     packet
                         .respond(Response::new_with_request(
                             ResponseContent::Success {
@@ -242,6 +250,12 @@ impl Process {
                             *packet.get().id(),
                         ))
                         .unwrap();
+
+                    std::mem::drop(tokio::spawn(async { recv.await.unwrap() }));
+                    // this must not block
+                    // as it also wait for the
+                    // current functions to
+                    // finish
                 }
             }
             // confirmreceive gets filtered out and handles in the listener loop

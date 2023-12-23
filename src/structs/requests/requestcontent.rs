@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use serde::Deserialize;
 
-use crate::structs::Subscription;
+use crate::structs::{Discriminator, Subscription};
 
 /// variations of requests
 #[derive(Deserialize, Clone, PartialEq, Eq, Debug)]
@@ -22,6 +22,7 @@ pub enum RequestContent {
     Subscribe {
         channel: Subscription,
         priority: Option<u32>,
+        component: Option<Discriminator>,
     },
 
     #[serde(rename = "set socket")]

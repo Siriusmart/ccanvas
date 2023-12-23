@@ -24,9 +24,7 @@ impl EventSerde {
                 height: *height,
             },
             Event::MouseEvent(mouse) => Self::Mouse(*mouse),
-            Event::RequestPacket(_) | Event::RegSubscription(_, _, _) => {
-                unreachable!("should not happend")
-            }
+            Event::RequestPacket(_) => unreachable!("should not happend"),
         }
     }
 }

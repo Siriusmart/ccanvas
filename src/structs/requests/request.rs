@@ -4,7 +4,7 @@ use super::RequestContent;
 use serde::Deserialize;
 
 /// a signal that comes from a subprocess
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct Request {
     /// reciever
     target: Discriminator,
@@ -18,6 +18,16 @@ impl Request {
     /// returns discrim of target component
     pub fn target(&self) -> &Discriminator {
         &self.target
+    }
+
+    /// returns discrim of target component (mutable)
+    pub fn target_mut(&mut self) -> &mut Discriminator {
+        &mut self.target
+    }
+
+    /// returns RequestContent (mutable)
+    pub fn content_mut(&mut self) -> &mut RequestContent {
+        &mut self.content
     }
 
     /// returns RequestContent

@@ -41,4 +41,15 @@ impl Discriminator {
         self.is_parent_of(&child)
             .then(|| child.truncate(self.0.len() + 1))
     }
+
+    /// returns the immediate parent
+    /// None if component is top level [1]
+    pub fn immediate_parent(self) -> Option<Self> {
+        if self.0.len() < 2 {
+            None
+        } else {
+            let len = self.0.len();
+            Some(self.truncate(len - 1))
+        }
+    }
 }

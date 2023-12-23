@@ -1,4 +1,4 @@
-use crate::structs::{Discriminator, Packet, Request, Response, Subscription};
+use crate::structs::{Packet, Request, Response, Subscription};
 
 use super::{KeyEvent, MouseEvent};
 
@@ -15,9 +15,6 @@ pub enum Event {
     ScreenResize(u32, u32),
     /// request that requires a response
     RequestPacket(Packet<Request, Response>),
-    /// register subscription to parent space
-    /// (channel, priority, discrim)
-    RegSubscription(Subscription, Option<u32>, Discriminator),
 }
 
 impl TryFrom<TermionEvent> for Event {
