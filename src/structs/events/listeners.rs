@@ -1,7 +1,7 @@
 use std::io::stdin;
 
 use nix::sys::signal::{self, SigHandler, Signal};
-use termion::input::TermReadEventsAndRaw;
+use termion::input::TermRead;
 use tokio::sync::{
     mpsc::{self, UnboundedReceiver, UnboundedSender},
     OnceCell,
@@ -19,6 +19,7 @@ impl Event {
     /// kick start the event broadcaster
     /// should only be called once for the entire duration of the program
     pub fn start() -> UnboundedReceiver<Event> {
+        // can only be started once
         if EVENTS.get().is_some() {
             panic!("events broadcast has already been started");
         }
@@ -29,24 +30,26 @@ impl Event {
             let tx = tx.clone();
             tokio::task::spawn_blocking(move || {
                 stdin()
-                    .events_and_raw()
-                    .into_iter()
+                    .events()
+                    // filter out events that cannot be converted into event
                     .filter_map(|event| -> Option<Event> {
                         let event = event;
                         if let Ok(event) = event {
-                            if let Ok(event) = event.0.try_into() {
+                            if let Ok(event) = event.try_into() {
                                 return Some(event);
                             }
                         }
-                        return None;
+                        None
                     })
                     .for_each(|event| {
+                        // send events to master space
                         let _ = tx.send(event);
                     })
             });
         }
 
         extern "C" fn handle_resize(_: libc::c_int) {
+            // send a screen resize event when it is resized
             let (x, y) = termion::terminal_size().unwrap();
             let _ = EVENTS
                 .get()
@@ -65,6 +68,7 @@ impl Event {
             signal::sigaction(Signal::SIGWINCH, &sig_action).unwrap();
         }
 
+        // also let other codes send events
         EVENTS.set(tx).unwrap();
 
         rx

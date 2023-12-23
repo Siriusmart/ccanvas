@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 
+use crate::structs::Discriminator;
 use crate::traits::Component;
-
-use super::Discriminator;
 
 /// a collection of component items
 pub struct Collection<T: Component> {
@@ -11,25 +10,7 @@ pub struct Collection<T: Component> {
 }
 
 impl<T: Component> Collection<T> {
-    /// return all items matching label
-    // pub async fn find_all_by_label(&self, label: &str) -> Vec<Arc<Mutex<T>>> {
-    //     self.items
-    //         .iter()
-    //         .filter_map(|(_, value)| {
-    //             if label
-    //                 == runtime::Builder::new_current_thread()
-    //                     .build()
-    //                     .unwrap()
-    //                     .block_on(value.lock())
-    //                     .label()
-    //             {
-    //                 Some(value.clone())
-    //             } else {
-    //                 None
-    //             }
-    //         })
-    //         .collect()
-    // }
+    /// return all elements with that label
     pub async fn find_all_by_label(&self, label: &str) -> Vec<&T> {
         self.items
             .iter()

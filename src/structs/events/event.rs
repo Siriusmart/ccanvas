@@ -1,6 +1,6 @@
 use crate::structs::{Discriminator, Packet, Request, Response, Subscription};
 
-use super::KeyEvent;
+use super::{KeyEvent, MouseEvent};
 
 use termion::event::Event as TermionEvent;
 
@@ -9,6 +9,8 @@ use termion::event::Event as TermionEvent;
 pub enum Event {
     /// keyboard event
     KeyPress(KeyEvent),
+    /// events related to mouse down
+    MouseEvent(MouseEvent),
     /// screen resize event (should trigger a rerender)
     ScreenResize(u32, u32),
     /// request that requires a response
@@ -22,7 +24,7 @@ impl TryFrom<TermionEvent> for Event {
     fn try_from(value: TermionEvent) -> Result<Self, Self::Error> {
         match value {
             TermionEvent::Key(keyevent) => Ok(Self::KeyPress(KeyEvent::try_from(keyevent)?)),
-            TermionEvent::Mouse(mouseevent) => todo!(),
+            TermionEvent::Mouse(mouseevent) => Ok(Self::MouseEvent(MouseEvent::from(mouseevent))),
             TermionEvent::Unsupported(bytes) => Err(crate::Error::UnsupportedEvent(bytes)),
         }
     }
@@ -33,7 +35,7 @@ impl TryFrom<TermionEvent> for Event {
 impl Event {
     pub fn subscriptions(&self) -> &[Subscription] {
         match self {
-            Self::KeyPress(keyevent) => &[Subscription::AllKeyPresses],
+            Self::KeyPress(_keyevent) => &[Subscription::AllKeyPresses],
             _ => &[],
         }
     }

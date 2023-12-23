@@ -18,12 +18,14 @@ pub enum RequestContent {
     },
 
     #[serde(rename = "subscribe")]
+    /// add subscription to a channel with priority
     Subscribe {
         channel: Subscription,
         priority: Option<u32>,
     },
 
     #[serde(rename = "set socket")]
+    /// sent responses to this socket
     SetSocket { path: PathBuf },
 }
 

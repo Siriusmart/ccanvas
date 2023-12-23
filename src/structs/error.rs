@@ -18,6 +18,10 @@ pub enum Error {
     /// unsupported termion key event
     #[serde(rename = "unsupported key")]
     UnsupportedKey,
+
+    /// packets can only respond to sender once
+    #[serde(rename = "packet double response")]
+    PacketDoubleResp,
 }
 
 impl fmt::Display for Error {
@@ -28,6 +32,7 @@ impl fmt::Display for Error {
                 f.write_fmt(format_args!("unsupported event {bytes:?}"))
             }
             Self::UnsupportedKey => f.write_str("unsupported key"),
+            Self::PacketDoubleResp => f.write_str("packet double sending response"),
         }
     }
 }

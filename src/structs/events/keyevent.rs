@@ -2,7 +2,7 @@ use serde::Serialize;
 use termion::event::Key as TermionKey;
 
 /// a single keyboard event
-#[derive(Debug, PartialEq, Eq, Clone, Serialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize)]
 pub struct KeyEvent {
     /// the keycode represented by the characetr
     code: KeyCode,

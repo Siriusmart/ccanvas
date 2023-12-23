@@ -28,12 +28,15 @@ impl<T, R> Packet<T, R> {
         &self.message
     }
 
-    pub fn respond(&mut self, res: R) -> bool {
+    /// respond to packet sender, and return Ok if sent successfully
+    pub fn respond(&mut self, res: R) -> Result<(), crate::Error> {
         if let Some(resp) = std::mem::take(&mut self.responder) {
+            // this allows &mut Self to use
+            // this function
             let _ = resp.send(res);
-            return true;
+            Ok(())
         } else {
-            return false;
+            Err(crate::Error::PacketDoubleResp)
         }
     }
 }
