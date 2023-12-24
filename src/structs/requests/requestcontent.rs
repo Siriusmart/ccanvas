@@ -28,6 +28,9 @@ pub enum RequestContent {
     #[serde(rename = "set socket")]
     /// sent responses to this socket
     SetSocket { path: PathBuf },
+
+    #[serde(rename = "drop")]
+    Drop { discrim: Option<Discriminator> },
 }
 
 impl RequestContent {

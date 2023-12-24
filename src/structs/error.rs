@@ -22,6 +22,9 @@ pub enum Error {
     /// packets can only respond to sender once
     #[serde(rename = "packet double response")]
     PacketDoubleResp,
+
+    #[serde(rename = "undelivered")]
+    Undelivered,
 }
 
 impl fmt::Display for Error {
@@ -33,6 +36,7 @@ impl fmt::Display for Error {
             }
             Self::UnsupportedKey => f.write_str("unsupported key"),
             Self::PacketDoubleResp => f.write_str("packet double sending response"),
+            Self::Undelivered => f.write_str("undelivered"),
         }
     }
 }

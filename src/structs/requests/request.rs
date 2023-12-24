@@ -2,6 +2,7 @@ use crate::structs::{Discriminator, Event, Packet, Response, ResponseContent};
 
 use super::RequestContent;
 use serde::Deserialize;
+use tokio::sync::OnceCell;
 
 /// a signal that comes from a subprocess
 #[derive(Deserialize, Debug, Clone)]
@@ -14,7 +15,23 @@ pub struct Request {
     id: u32,
 }
 
+/// for generated requests not coming from a process
+static mut REQ_ALTID: OnceCell<u32> = OnceCell::const_new_with(u32::MAX);
+
+fn req_id() -> u32 {
+    let id = unsafe { REQ_ALTID.get_mut() }.unwrap();
+    *id -= 1;
+    *id
+}
+
 impl Request {
+    pub fn new(target: Discriminator, content: RequestContent) -> Self {
+        Self {
+            target,
+            content,
+            id: req_id(),
+        }
+    }
     /// returns discrim of target component
     pub fn target(&self) -> &Discriminator {
         &self.target

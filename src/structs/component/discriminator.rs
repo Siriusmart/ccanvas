@@ -10,7 +10,7 @@ pub fn discrim() -> u32 {
 
 /// a unique path id for every component
 #[derive(Default, PartialEq, Eq, Clone, Debug, Serialize, Deserialize, Hash)]
-pub struct Discriminator(Vec<u32>);
+pub struct Discriminator(pub Vec<u32>);
 
 impl Discriminator {
     /// create new child component
@@ -45,11 +45,9 @@ impl Discriminator {
     /// returns the immediate parent
     /// None if component is top level [1]
     pub fn immediate_parent(self) -> Option<Self> {
-        if self.0.len() < 2 {
-            None
-        } else {
+        (!self.0.is_empty()).then(|| {
             let len = self.0.len();
-            Some(self.truncate(len - 1))
-        }
+            self.truncate(len - 1)
+        })
     }
 }

@@ -90,6 +90,22 @@ impl Passes {
         false
     }
 
+    pub fn unsub_all(&mut self, discrim: &Discriminator) {
+        let mut to_drop = Vec::new();
+        self.subscriptions.iter_mut().for_each(|(key, items)| {
+            if let Some(index) = items.iter().position(|x| x.discrim() == discrim) {
+                items.remove(index);
+                if items.is_empty() {
+                    to_drop.push(key.clone())
+                }
+            }
+        });
+
+        to_drop.iter().for_each(|key| {
+            let _ = self.subscriptions.remove(key);
+        })
+    }
+
     /// list subscribers of all the subscriptions specified
     /// sorted + no duplicates
     pub fn subscribers(&self, subscription: &[Subscription]) -> Vec<PassItem> {

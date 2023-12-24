@@ -69,6 +69,16 @@ impl Space {
             .unwrap();
             unsafe { SCREEN.get_mut() }.unwrap().flush().unwrap();
 
+            if let Event::RequestPacket(req) = &event {
+                if req.get().content()
+                    == &(RequestContent::Drop {
+                        discrim: Some(Discriminator(vec![1])),
+                    })
+                    && req.get().target().0.is_empty()
+                {
+                    return;
+                }
+            }
             // q is the exit key for debugging purposes
             if event == Event::KeyPress(KeyEvent::new(KeyCode::Char('q'), KeyModifier::None)) {
                 return;
@@ -115,28 +125,44 @@ impl Component for Space {
             // but i think it is unreachable, but shouldnt cause a panic
             // as a bad request could reach this, so for now just ignore it
             Event::RequestPacket(req) if req.get().target() == self.discrim() => {
-                if let RequestContent::Subscribe {
-                    channel,
-                    priority,
-                    component: Some(discrim),
-                } = req.get().content()
-                {
-                    if let Some(child) = self.discrim.immediate_child(discrim.clone()) {
-                        if self.processes.contains(&child) {
-                            // if its a process, subscribe to the event right here
-                            self.passes.subscribe(
-                                channel.clone(),
-                                PassItem::new(discrim.clone(), *priority),
-                            );
-                            req.respond(Response::new_with_request(
-                                ResponseContent::Success {
-                                    content: ResponseSuccess::SubscribeAdded,
-                                },
-                                *req.get().id(),
-                            ))
-                            .unwrap();
+                match req.get().content() {
+                    RequestContent::Subscribe {
+                        channel,
+                        priority,
+                        component: Some(discrim),
+                    } => {
+                        if let Some(child) = self.discrim.immediate_child(discrim.clone()) {
+                            if self.processes.contains(&child) {
+                                // if its a process, subscribe to the event right here
+                                self.passes.subscribe(
+                                    channel.clone(),
+                                    PassItem::new(discrim.clone(), *priority),
+                                );
+                                req.respond(Response::new_with_request(
+                                    ResponseContent::Success {
+                                        content: ResponseSuccess::SubscribeAdded,
+                                    },
+                                    *req.get().id(),
+                                ))
+                                .unwrap();
+                            }
                         }
                     }
+                    RequestContent::Drop { discrim } => {
+                        // drop (remove) a child component
+                        if let Some(child) = self.discrim.immediate_child(discrim.clone().unwrap())
+                        {
+                            if self.processes.contains(&child) {
+                                self.passes.unsub_all(&child);
+                                self.processes.remove(&child);
+                            } else if self.subspaces.contains(&child) {
+                                self.subspaces.remove(&child);
+                            }
+                        }
+                    }
+                    RequestContent::Subscribe { .. }
+                    | RequestContent::ConfirmRecieve { .. }
+                    | RequestContent::SetSocket { .. } => unreachable!("not requests to spaces"),
                 }
 
                 return false;
