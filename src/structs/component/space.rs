@@ -79,10 +79,6 @@ impl Space {
                     return;
                 }
             }
-            // q is the exit key for debugging purposes
-            if event == Event::KeyPress(KeyEvent::new(KeyCode::Char('q'), KeyModifier::None)) {
-                return;
-            }
 
             // pass the event to master space
             let _ = self.pass(&mut event).await;

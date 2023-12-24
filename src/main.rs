@@ -1,4 +1,4 @@
-use std::process;
+use std::{env, process};
 
 use ccanvas::{
     structs::Space,
@@ -8,12 +8,18 @@ use ccanvas::{
 
 #[tokio::main]
 async fn main() {
+    let args: Vec<String> = env::args().skip(1).collect();
+    if args.len() < 2 {
+        println!("Bad arguments: expect `ccanvas [label] [command] (args..)`");
+        return;
+    }
+
     enter().await;
 
     // creates new master space
     let mut master = Space::new("master".to_string()).await;
     master
-        .spawn("test".to_string(), "ccanvas-component".to_string(), vec![])
+        .spawn(args[0].clone(), args[1].clone(), args[2..].to_vec())
         .await
         .unwrap();
     master.listen().await;
