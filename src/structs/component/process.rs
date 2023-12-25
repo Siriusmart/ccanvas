@@ -179,7 +179,6 @@ impl Process {
                         Ok(req) => req,
                         Err(_) => continue,
                     };
-
                     // if the request is a confirmation to a response
                     // then confirm the response and unblock the self.pass() thing
                     // by sending a message
@@ -203,18 +202,24 @@ impl Process {
                                 discrim: Some(to_drop),
                             };
                         }
-                        RequestContent::Render { content: RenderRequest::SetChar { .. } } => 
-                            *request.target_mut() = Discriminator::master()
+                        RequestContent::Render {
+                            content: RenderRequest::SetChar { .. },
+                        } => {
+                            *request.target_mut() = Discriminator::master();
+                        }
                     }
 
-                    // otherwise, the request gets sended to the master space
-                    // and starts propagating downwards
-                    let res = request.send().await;
+                    let responder = responder.clone();
+                    tokio::task::spawn(async move {
+                        // otherwise, the request gets sended to the master space
+                        // and starts propagating downwards
+                        let res = request.send().await;
 
-                    // send a response to the request
-                    // but requires no confirmation
-                    // because the response is already a sort of confirmation
-                    responder.send(res).unwrap();
+                        // send a response to the request
+                        // but requires no confirmation
+                        // because the response is already a sort of confirmation
+                        responder.send(res).unwrap();
+                    });
                 }
             })
         };
@@ -291,7 +296,9 @@ impl Process {
             }
             // confirmreceive gets filtered out and handles in the listener loop
             // so we will never get it
-            RequestContent::ConfirmRecieve { .. } | RequestContent::Drop { .. } | RequestContent::Render { .. } => {
+            RequestContent::ConfirmRecieve { .. }
+            | RequestContent::Drop { .. }
+            | RequestContent::Render { .. } => {
                 unreachable!("not a real request")
             }
         }

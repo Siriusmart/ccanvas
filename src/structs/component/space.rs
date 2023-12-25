@@ -59,17 +59,9 @@ impl Space {
 
         while let Some(mut event) = listener.recv().await {
             // write out the event for debugging purposes
-            write!(
-                unsafe { SCREEN.get_mut().unwrap() },
-                "{}{}{:?}",
-                termion::cursor::Goto(1, 1),
-                termion::clear::CurrentLine,
-                event
-            )
-            .unwrap();
-            unsafe { SCREEN.get_mut() }.unwrap().flush().unwrap();
-
-            if let Event::RequestPacket(req) = &event {
+            if let Event::RequestPacket(req) = &mut event {
+                // req.respond(Response::new_with_request(ResponseContent::Undelivered, *req.get().id())).unwrap();
+                // continue;
                 if req.get().content()
                     == &(RequestContent::Drop {
                         discrim: Some(Discriminator(vec![1])),
@@ -79,7 +71,6 @@ impl Space {
                     return;
                 }
             }
-
             // pass the event to master space
             let _ = self.pass(&mut event).await;
         }
@@ -157,15 +148,41 @@ impl Component for Space {
                                     self.focus = Focus::This
                                 }
                             } else {
-                                req.respond(Response::new_with_request(ResponseContent::Error { content: ResponseError::ComponentNotFound }, *req.get().id())).unwrap();
+                                req.respond(Response::new_with_request(
+                                    ResponseContent::Error {
+                                        content: ResponseError::ComponentNotFound,
+                                    },
+                                    *req.get().id(),
+                                ))
+                                .unwrap();
                                 return false;
                             }
-                            req.respond(Response::new_with_request(ResponseContent::Success { content: ResponseSuccess::Dropped }, *req.get().id())).unwrap();
+                            req.respond(Response::new_with_request(
+                                ResponseContent::Success {
+                                    content: ResponseSuccess::Dropped,
+                                },
+                                *req.get().id(),
+                            ))
+                            .unwrap();
                         }
-                    },
-                    RequestContent::Render { content: RenderRequest::SetChar { x, y, c } } => {
-                        write!(unsafe { SCREEN.get_mut() }.unwrap(), "{}{c}", termion::cursor::Goto(*x as u16, *y as u16)).unwrap();
-                        req.respond(Response::new_with_request(ResponseContent::Success { content: ResponseSuccess::Rendered }, *req.get().id())).unwrap();
+                    }
+                    RequestContent::Render {
+                        content: RenderRequest::SetChar { x, y, c },
+                    } => {
+                        write!(
+                            unsafe { SCREEN.get_mut() }.unwrap(),
+                            "{}{c}",
+                            termion::cursor::Goto(*x as u16 + 1, *y as u16 + 1)
+                        )
+                        .unwrap();
+                        unsafe { SCREEN.get_mut() }.unwrap().flush().unwrap();
+                        req.respond(Response::new_with_request(
+                            ResponseContent::Success {
+                                content: ResponseSuccess::Rendered,
+                            },
+                            *req.get().id(),
+                        ))
+                        .unwrap();
                     }
                     RequestContent::Subscribe { .. }
                     | RequestContent::ConfirmRecieve { .. }

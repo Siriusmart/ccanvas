@@ -12,5 +12,5 @@ pub enum ResponseSuccess {
     Dropped,
 
     #[serde(rename = "rendered")]
-    Rendered
+    Rendered,
 }
