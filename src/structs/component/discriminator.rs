@@ -50,4 +50,9 @@ impl Discriminator {
             self.truncate(len - 1)
         })
     }
+
+    /// returns discriminator of master space
+    pub fn master() -> Self {
+        Self(vec![1])
+    }
 }

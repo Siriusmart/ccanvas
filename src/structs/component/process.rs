@@ -203,6 +203,8 @@ impl Process {
                                 discrim: Some(to_drop),
                             };
                         }
+                        RequestContent::Render { content: RenderRequest::SetChar { .. } } => 
+                            *request.target_mut() = Discriminator::master()
                     }
 
                     // otherwise, the request gets sended to the master space
@@ -289,7 +291,7 @@ impl Process {
             }
             // confirmreceive gets filtered out and handles in the listener loop
             // so we will never get it
-            RequestContent::ConfirmRecieve { .. } | RequestContent::Drop { .. } => {
+            RequestContent::ConfirmRecieve { .. } | RequestContent::Drop { .. } | RequestContent::Render { .. } => {
                 unreachable!("not a real request")
             }
         }

@@ -153,8 +153,19 @@ impl Component for Space {
                                 self.processes.remove(&child);
                             } else if self.subspaces.contains(&child) {
                                 self.subspaces.remove(&child);
+                                if self.focus == Focus::Children(child) {
+                                    self.focus = Focus::This
+                                }
+                            } else {
+                                req.respond(Response::new_with_request(ResponseContent::Error { content: ResponseError::ComponentNotFound }, *req.get().id())).unwrap();
+                                return false;
                             }
+                            req.respond(Response::new_with_request(ResponseContent::Success { content: ResponseSuccess::Dropped }, *req.get().id())).unwrap();
                         }
+                    },
+                    RequestContent::Render { content: RenderRequest::SetChar { x, y, c } } => {
+                        write!(unsafe { SCREEN.get_mut() }.unwrap(), "{}{c}", termion::cursor::Goto(*x as u16, *y as u16)).unwrap();
+                        req.respond(Response::new_with_request(ResponseContent::Success { content: ResponseSuccess::Rendered }, *req.get().id())).unwrap();
                     }
                     RequestContent::Subscribe { .. }
                     | RequestContent::ConfirmRecieve { .. }

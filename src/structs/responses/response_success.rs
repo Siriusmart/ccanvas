@@ -7,4 +7,10 @@ pub enum ResponseSuccess {
 
     #[serde(rename = "listener set")]
     ListenerSet,
+
+    #[serde(rename = "dropped")]
+    Dropped,
+
+    #[serde(rename = "rendered")]
+    Rendered
 }

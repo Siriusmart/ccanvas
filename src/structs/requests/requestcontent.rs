@@ -4,6 +4,8 @@ use serde::Deserialize;
 
 use crate::structs::{Discriminator, Subscription};
 
+use super::RenderRequest;
+
 /// variations of requests
 #[derive(Deserialize, Clone, PartialEq, Eq, Debug)]
 #[serde(tag = "type")]
@@ -31,6 +33,9 @@ pub enum RequestContent {
 
     #[serde(rename = "drop")]
     Drop { discrim: Option<Discriminator> },
+
+    #[serde(rename = "render")]
+    Render { content: RenderRequest },
 }
 
 impl RequestContent {
