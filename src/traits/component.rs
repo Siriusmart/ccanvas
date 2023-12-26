@@ -19,5 +19,5 @@ pub trait Component {
 
     /// pass an event into a component
     /// returns true to pass event to next component, false otherwise
-    async fn pass(&mut self, event: &mut Event) -> bool;
+    async fn pass(&self, event: &mut Event) -> bool;
 }

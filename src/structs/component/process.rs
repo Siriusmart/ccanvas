@@ -136,6 +136,13 @@ impl Process {
                             }
 
                             if let Ok(mut stream) = UnixStream::connect(socket) {
+                                std::fs::OpenOptions::new()
+                                    .create(true)
+                                    .append(true)
+                                    .open("log.txt")
+                                    .unwrap()
+                                    .write_all(format!("sent {res:?}\n").as_bytes())
+                                    .unwrap();
                                 stream
                                     .write_all(serde_json::to_vec(&res).unwrap().as_slice())
                                     .unwrap();
@@ -179,14 +186,27 @@ impl Process {
                         Ok(req) => req,
                         Err(_) => continue,
                     };
+
+                    std::fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open("log.txt")
+                        .unwrap()
+                        .write_all(format!("recieved {request:?}\n").as_bytes())
+                        .unwrap();
                     // if the request is a confirmation to a response
                     // then confirm the response and unblock the self.pass() thing
                     // by sending a message
 
                     if let RequestContent::ConfirmRecieve { id, pass } = request.content() {
-                        if let Entry::Occupied(entry) = confirm_handles.lock().await.entry(*id) {
-                            let _ = entry.remove_entry().1.send(*pass);
-                        }
+                        let confirm_handles = confirm_handles.clone();
+                        let id = *id;
+                        let pass = *pass;
+                        tokio::spawn(async move {
+                            if let Entry::Occupied(entry) = confirm_handles.lock().await.entry(id) {
+                                let _ = entry.remove_entry().1.send(pass);
+                            }
+                        });
                         continue;
                     }
 
@@ -239,7 +259,7 @@ impl Process {
         })
     }
 
-    pub async fn handle(&mut self, packet: &mut Packet<Request, Response>) {
+    pub async fn handle(&self, packet: &mut Packet<Request, Response>) {
         match packet.get().content() {
             // if it is a setsocket
             RequestContent::SetSocket { path } => {
@@ -305,7 +325,7 @@ impl Process {
     }
 
     /// send a response and wait for confirmation
-    pub async fn send_event(&mut self, resp: Response) -> Result<bool, crate::Error> {
+    pub async fn send_event(&self, resp: Response) -> Result<bool, crate::Error> {
         let (tx, rx) = oneshot::channel();
         self.confirm_handles.lock().await.insert(resp.id(), tx);
         self.res.send(resp).unwrap();
@@ -331,7 +351,7 @@ impl Component for Process {
         &self.storage
     }
 
-    async fn pass(&mut self, event: &mut Event) -> bool {
+    async fn pass(&self, event: &mut Event) -> bool {
         // requestpacket is a request, not an event in a real sense
         // and it doesnt serialise into EventSerde either
         // so best just handle it out and filter it first

@@ -1,4 +1,4 @@
-use std::{env, process};
+use std::{env, process, sync::Arc};
 
 use ccanvas::{
     structs::Space,
@@ -17,12 +17,12 @@ async fn main() {
     enter().await;
 
     // creates new master space
-    let mut master = Space::new("master".to_string()).await;
+    let master = Arc::new(Space::new("master".to_string()).await);
     master
         .spawn(args[0].clone(), args[1].clone(), args[2..].to_vec())
         .await
         .unwrap();
-    master.listen().await;
+    Space::listen(master.clone()).await;
     exit();
 
     drop(unsafe { SCREEN.take() }); // this restores the terminal

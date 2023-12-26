@@ -1,6 +1,8 @@
+use std::sync::Arc;
 use std::{error::Error, io::Write};
 
 use async_trait::async_trait;
+use tokio::sync::Mutex;
 
 use crate::{traits::Component, values::SCREEN};
 
@@ -21,16 +23,16 @@ pub struct Space {
     storage: Storage,
 
     /// spaces the current space contains
-    subspaces: Collection<Self>,
+    subspaces: Arc<Mutex<Collection<Self>>>,
 
     /// currently in use space, could be self or children
-    focus: Focus,
+    focus: Arc<Mutex<Focus>>,
 
     /// process event subscriptions in this space
-    passes: Passes,
+    passes: Arc<Mutex<Passes>>,
 
     /// process pool
-    processes: Collection<Process>,
+    processes: Arc<Mutex<Collection<Process>>>,
 }
 
 impl Space {
@@ -45,16 +47,16 @@ impl Space {
             label,
             discrim: parent_discrim.new_child(),
             pool: Pool::default(),
-            subspaces: Collection::default(),
-            focus: Focus::default(),
-            passes: Passes::default(),
-            processes: Collection::default(),
+            subspaces: Arc::new(Mutex::new(Collection::default())),
+            focus: Arc::new(Mutex::new(Focus::default())),
+            passes: Arc::new(Mutex::new(Passes::default())),
+            processes: Arc::new(Mutex::new(Collection::default())),
         }
     }
 
     /// start listening to all events, only the top level,
     /// "master" space should do this
-    pub async fn listen(&mut self) {
+    pub async fn listen(arc: Arc<Self>) {
         let mut listener = Event::start();
 
         while let Some(mut event) = listener.recv().await {
@@ -71,18 +73,25 @@ impl Space {
                     return;
                 }
             }
+
+            let arc = arc.clone();
             // pass the event to master space
-            let _ = self.pass(&mut event).await;
+            tokio::spawn(async move {
+                arc.pass(&mut event).await;
+            });
+            // let _ = arc.pass(&mut event).await;
         }
     }
 
     pub async fn spawn(
-        &mut self,
+        &self,
         label: String,
         command: String,
         args: Vec<String>,
     ) -> Result<(), Box<dyn Error>> {
         self.processes
+            .lock()
+            .await
             .insert(Process::spawn(label, &self.discrim, command, args).await?);
         Ok(())
     }
@@ -106,7 +115,7 @@ impl Component for Space {
         &self.storage
     }
 
-    async fn pass(&mut self, event: &mut Event) -> bool {
+    async fn pass(&self, event: &mut Event) -> bool {
         match event {
             // i have no idea what this branch does
             // but i think it is unreachable, but shouldnt cause a panic
@@ -119,9 +128,9 @@ impl Component for Space {
                         component: Some(discrim),
                     } => {
                         if let Some(child) = self.discrim.immediate_child(discrim.clone()) {
-                            if self.processes.contains(&child) {
+                            if self.processes.lock().await.contains(&child) {
                                 // if its a process, subscribe to the event right here
-                                self.passes.subscribe(
+                                self.passes.lock().await.subscribe(
                                     channel.clone(),
                                     PassItem::new(discrim.clone(), *priority),
                                 );
@@ -139,13 +148,13 @@ impl Component for Space {
                         // drop (remove) a child component
                         if let Some(child) = self.discrim.immediate_child(discrim.clone().unwrap())
                         {
-                            if self.processes.contains(&child) {
-                                self.passes.unsub_all(&child);
-                                self.processes.remove(&child);
-                            } else if self.subspaces.contains(&child) {
-                                self.subspaces.remove(&child);
-                                if self.focus == Focus::Children(child) {
-                                    self.focus = Focus::This
+                            if self.processes.lock().await.contains(&child) {
+                                self.passes.lock().await.unsub_all(&child);
+                                self.processes.lock().await.remove(&child);
+                            } else if self.subspaces.lock().await.contains(&child) {
+                                self.subspaces.lock().await.remove(&child);
+                                if *self.focus.lock().await == Focus::Children(child) {
+                                    *self.focus.lock().await = Focus::This
                                 }
                             } else {
                                 req.respond(Response::new_with_request(
@@ -197,9 +206,10 @@ impl Component for Space {
                 // to its intended target
                 if let Some(child) = self.discrim.immediate_child(req.get().target().clone()) {
                     // no 2 components are the same, so order shouldnt matter
-                    if let Some(proc) = self.processes.find_by_discrim_mut(&child) {
+                    if let Some(proc) = self.processes.lock().await.find_by_discrim(&child) {
                         proc.pass(event).await;
-                    } else if let Some(space) = self.subspaces.find_by_discrim_mut(&child) {
+                    } else if let Some(space) = self.subspaces.lock().await.find_by_discrim(&child)
+                    {
                         space.pass(event).await;
                     } else {
                         req.respond(Response::new(ResponseContent::Undelivered))
@@ -215,13 +225,15 @@ impl Component for Space {
         }
 
         // all components listening to this event
-        let targets = self.passes.subscribers(event.subscriptions());
+        let targets = self.passes.lock().await.subscribers(event.subscriptions());
 
         // repeat until someone decide to capture the event
         for target in targets {
             if !self
                 .processes
-                .find_by_discrim_mut(target.discrim())
+                .lock()
+                .await
+                .find_by_discrim(target.discrim())
                 .unwrap()
                 .pass(event)
                 .await
@@ -231,9 +243,11 @@ impl Component for Space {
         }
 
         // if all went well then continue to pass down into subspaces
-        if let Focus::Children(discrim) = &self.focus {
+        if let Focus::Children(discrim) = &*self.focus.lock().await {
             self.processes
-                .find_by_discrim_mut(discrim)
+                .lock()
+                .await
+                .find_by_discrim(discrim)
                 .unwrap()
                 .pass(event)
                 .await;

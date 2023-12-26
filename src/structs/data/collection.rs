@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::structs::Discriminator;
 use crate::traits::Component;
@@ -6,7 +7,7 @@ use crate::traits::Component;
 /// a collection of component items
 pub struct Collection<T: Component> {
     // items: HashMap<Discriminator, Arc<Mutex<T>>>,
-    items: HashMap<Discriminator, T>,
+    items: HashMap<Discriminator, Arc<T>>,
 }
 
 impl<T: Component> Collection<T> {
@@ -16,7 +17,7 @@ impl<T: Component> Collection<T> {
             .iter()
             .filter_map(|(_, value)| {
                 if label == value.label() {
-                    Some(value)
+                    Some(value.as_ref())
                 } else {
                     None
                 }
@@ -26,13 +27,13 @@ impl<T: Component> Collection<T> {
 
     /// return max one element with matching discriminator
     pub fn find_by_discrim(&self, discrim: &Discriminator) -> Option<&T> {
-        self.items.get(discrim)
+        self.items.get(discrim).map(|item| item.as_ref())
     }
 
     /// return max one element with matching discriminator (mutable)
-    pub fn find_by_discrim_mut(&mut self, discrim: &Discriminator) -> Option<&mut T> {
-        self.items.get_mut(discrim)
-    }
+    // pub fn find_by_discrim_mut(&mut self, discrim: &Discriminator) -> Option<&mut T> {
+    //     self.items.get_mut(discrim)
+    // }
 
     /// check if the item is in collection
     pub fn contains(&self, discrim: &Discriminator) -> bool {
@@ -40,8 +41,8 @@ impl<T: Component> Collection<T> {
     }
 
     /// insert an item and return handle to it
-    pub fn insert(&mut self, item: T) -> Option<T> {
-        self.items.insert(item.discrim().clone(), item)
+    pub fn insert(&mut self, item: T) {
+        self.items.insert(item.discrim().clone(), Arc::new(item));
     }
 
     /// removes an item by discrim
