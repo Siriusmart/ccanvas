@@ -1,6 +1,5 @@
 use std::{
     collections::{hash_map::Entry, HashMap},
-    error::Error,
     io::{Read, Write},
     os::unix::net::{UnixListener, UnixStream},
     process::Stdio,
@@ -67,7 +66,7 @@ impl Process {
         parent: &Discriminator,
         command: String,
         args: Vec<String>,
-    ) -> Result<Self, Box<dyn Error>> {
+    ) -> Result<Self, std::io::Error> {
         let discrim = parent.new_child();
         let storage = Storage::new(&discrim).await;
 
@@ -136,13 +135,6 @@ impl Process {
                             }
 
                             if let Ok(mut stream) = UnixStream::connect(socket) {
-                                std::fs::OpenOptions::new()
-                                    .create(true)
-                                    .append(true)
-                                    .open("log.txt")
-                                    .unwrap()
-                                    .write_all(format!("sent {res:?}\n").as_bytes())
-                                    .unwrap();
                                 stream
                                     .write_all(serde_json::to_vec(&res).unwrap().as_slice())
                                     .unwrap();
@@ -187,13 +179,6 @@ impl Process {
                         Err(_) => continue,
                     };
 
-                    std::fs::OpenOptions::new()
-                        .create(true)
-                        .append(true)
-                        .open("log.txt")
-                        .unwrap()
-                        .write_all(format!("recieved {request:?}\n").as_bytes())
-                        .unwrap();
                     // if the request is a confirmation to a response
                     // then confirm the response and unblock the self.pass() thing
                     // by sending a message
@@ -226,6 +211,11 @@ impl Process {
                             content: RenderRequest::SetChar { .. },
                         } => {
                             *request.target_mut() = Discriminator::master();
+                        }
+                        RequestContent::Spawn { .. } => {
+                            if request.target().is_empty() {
+                                *request.target_mut() = discrim.clone().immediate_parent().unwrap();
+                            }
                         }
                     }
 
@@ -314,6 +304,12 @@ impl Process {
                 // current functions to
                 // finish
             }
+            RequestContent::Spawn { .. } => packet
+                .respond(Response::new_with_request(
+                    ResponseContent::Undelivered,
+                    *packet.get().id(),
+                ))
+                .unwrap(),
             // confirmreceive gets filtered out and handles in the listener loop
             // so we will never get it
             RequestContent::ConfirmRecieve { .. }

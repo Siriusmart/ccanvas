@@ -122,6 +122,39 @@ impl Component for Space {
             // as a bad request could reach this, so for now just ignore it
             Event::RequestPacket(req) if req.get().target() == self.discrim() => {
                 match req.get().content() {
+                    RequestContent::Spawn {
+                        command,
+                        args,
+                        label,
+                    } => match Process::spawn(
+                        label.clone(),
+                        &self.discrim,
+                        command.clone(),
+                        args.clone(),
+                    )
+                    .await
+                    {
+                        Ok(process) => {
+                            req.respond(Response::new_with_request(
+                                ResponseContent::Success {
+                                    content: ResponseSuccess::Spawned {
+                                        discrim: process.discrim().clone(),
+                                    },
+                                },
+                                *req.get().id(),
+                            ))
+                            .unwrap();
+                            self.processes.lock().await.insert(process);
+                        }
+                        Err(_) => req
+                            .respond(Response::new_with_request(
+                                ResponseContent::Error {
+                                    content: ResponseError::SpawnFailed,
+                                },
+                                *req.get().id(),
+                            ))
+                            .unwrap(),
+                    },
                     RequestContent::Subscribe {
                         channel,
                         priority,

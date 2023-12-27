@@ -55,4 +55,8 @@ impl Discriminator {
     pub fn master() -> Self {
         Self(vec![1])
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
 }

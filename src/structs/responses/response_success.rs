@@ -1,6 +1,9 @@
 use serde::Serialize;
 
+use crate::structs::Discriminator;
+
 #[derive(Serialize, Clone, PartialEq, Debug)]
+#[serde(tag = "type")]
 pub enum ResponseSuccess {
     #[serde(rename = "subscribe added")]
     SubscribeAdded,
@@ -13,4 +16,7 @@ pub enum ResponseSuccess {
 
     #[serde(rename = "rendered")]
     Rendered,
+
+    #[serde(rename = "spawned")]
+    Spawned { discrim: Discriminator },
 }

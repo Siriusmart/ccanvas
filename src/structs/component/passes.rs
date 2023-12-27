@@ -3,7 +3,7 @@ use std::collections::{hash_map::Entry, HashMap};
 use super::{Discriminator, Subscription};
 
 /// a single subscription item
-#[derive(Eq, Clone)]
+#[derive(Eq, Clone, Debug)]
 pub struct PassItem {
     /// 0 is highest
     /// None is lowest
@@ -25,21 +25,9 @@ impl PassItem {
     }
 }
 
-impl PartialOrd for PassItem {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for PassItem {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.priority.cmp(&other.priority)
-    }
-}
-
 impl PartialEq for PassItem {
     fn eq(&self, other: &Self) -> bool {
-        self.priority == other.priority
+        self.discrim == other.discrim
     }
 }
 
@@ -62,7 +50,7 @@ impl Passes {
         // put it in the right place
         // according to priority
         for i in 0..items.len() {
-            if items[i] > item {
+            if items[i].priority > item.priority {
                 items.insert(i, item);
                 return;
             }
@@ -117,13 +105,13 @@ impl Passes {
 
         // they are now according to priority
         // but there may be duplicates
-        subscribers.sort();
+        subscribers.sort_by_cached_key(|item| item.priority);
 
         // only take the highest priority
         // if a component has multiple subscriptions on this event
         let mut out = Vec::new();
         subscribers.into_iter().for_each(|sub| {
-            if out.binary_search(sub).is_err() {
+            if !out.contains(sub) {
                 // if its error
                 // it means its not there
                 // this works because it is sorted at all times

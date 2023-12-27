@@ -32,10 +32,20 @@ pub enum RequestContent {
     SetSocket { path: PathBuf },
 
     #[serde(rename = "drop")]
+    /// remove a single component
     Drop { discrim: Option<Discriminator> },
 
     #[serde(rename = "render")]
+    /// render something to the terminal
     Render { content: RenderRequest },
+
+    #[serde(rename = "spawn")]
+    /// spawn a new process
+    Spawn {
+        command: String,
+        args: Vec<String>,
+        label: String,
+    },
 }
 
 impl RequestContent {
