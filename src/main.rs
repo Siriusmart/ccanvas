@@ -1,31 +1,31 @@
-use std::{env, process, sync::Arc};
+use std::{env, sync::Arc, time::Duration};
 
 use ccanvas::{
     structs::Space,
     term::{enter, exit},
-    values::SCREEN,
 };
+use tokio::runtime::Runtime;
 
-#[tokio::main]
-async fn main() {
+fn main() {
     let args: Vec<String> = env::args().skip(1).collect();
     if args.len() < 2 {
         println!("Bad arguments: expect `ccanvas [label] [command] (args..)`");
         return;
     }
 
-    enter().await;
+    let runtime = Runtime::new().unwrap();
+
+    runtime.block_on(enter());
 
     // creates new master space
-    let master = Arc::new(Space::new("master".to_string()).await);
-    master
-        .spawn(args[0].clone(), args[1].clone(), args[2..].to_vec())
-        .await
+    let master = Arc::new(runtime.block_on(Space::new("master".to_string())));
+    runtime
+        .block_on(master.spawn(args[0].clone(), args[1].clone(), args[2..].to_vec()))
         .unwrap();
-    Space::listen(master.clone()).await;
-    exit();
+    runtime.block_on(Space::listen(master.clone()));
 
-    drop(unsafe { SCREEN.take() }); // this restores the terminal
-    drop(master);
-    process::exit(0); // this will kills all running tokio tasks, and immediately exit
+    // get rid of everyting, kills all processes, etc
+    runtime.shutdown_timeout(Duration::from_secs(0));
+
+    exit();
 }

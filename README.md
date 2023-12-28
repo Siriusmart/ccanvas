@@ -1,23 +1,62 @@
-No more explanation for now.
+# ccanvas
 
-If interested, reach out to me [siriusmart:matrix.org](https://matrix.to/#/@siriusmart:matrix.org) or on Discord.
+ccanvas allows multiple programs to draw on the same terminal in an async/non-blocking manner.
+
+> **ccanvas uses unix sockets**, which may not be available on windows.
 
 ## Showcase
 
-To showcase what it can do, here's a small clip of writing a component which exits the canvas when `'q'` is pressed, and showing how ccanvas works in the process.
+Click on the image for video.
 
-[Link to video](https://gmtex.siri.sh/fs/1/Dump/Showcases/ccanvas_2023-12-24.mp4)
+[![](https://gmtex.siri.sh/api/usercontent/v1/file/id/1/tex/Dump/Showcases/ccanvas-snake.png)](https://gmtex.siri.sh/fs/1/Dump/Showcases/ccanvas-snake.webm)
 
-Simplified version of stuff that happened:
+## Backstory
 
-1. ccanvas starts
-2. Creates the master space `/1`
-3. Loads a component as specified in command args at `/1/2`
-4. Component subscribes to all key presses
-5. Component tells the main canvas to exit when `'q'` is pressed
+The [**`youtube-tui`**](https://github.com/Siriusmart/youtube-tui/) was my first TUI project, one major issues is that the whole program freezes when waiting for server response of a video. This is because it uses a **blocking event loop** as so:
 
-The end
+1. Render current state to screen.
+2. Do something - such as loading a video.
+3. Repeat.
 
-## Idea
+This is problematic if the task takes a long time to complete, as it blocks all incoming events, including pressing `q` which exit the TUI.
 
-![](./docs/assets/idea.png)
+At the same time I was also facing the unsolvable problem of inter-component communication, I hacked together a solution which utilises shared memory, but it was far from the ideal message-based communication.
+
+## Goals
+
+- To create a TUI framework that is non-blocking by default.
+- To create a component based TUI framework, where each component is a separate program.
+- To create a component based TUI framework, where each component have the option to communicate with each other using messages, shared memory, or shared storage.
+
+## Implementation
+
+### Components
+
+ccanvas is structured into "components"
+
+- a ***space*** can contain any number of child components.
+- a ***process*** represents a real process running.
+
+> A space can focus on itself, or one child space.
+
+Each component is referenced by its unique identifying ***discriminator***, which is just a path of numbers, such as `/1/2/3/4`. `/1` is called the ***master space***.
+
+- New spaces can be created (WIP) and new processes can be spawned in.
+- Any component can be ***dropped*** and removed.
+- To exit the canvas, call ***drop*** on `/1.`
+
+### Events
+
+ccanvas receive "events" from 3 sources.
+
+- Terminal events - key presses, mouse click, resizes, etc.
+- Component requests - messages to be passed, render requests, etc.
+- Generated events - registering subscriptions, message broadcasts, etc.
+
+All 3 of these event sources are funnelled into a single ***event stream***, where they are handled by a non-blocking event loop, here's how it works:
+
+1. Events enters the canvas through different sources.
+2. All events are funnelled into a single ***event stream***.
+3. All events are passed into the ***master space***.
+
+The space will then decide where should the event be passed to. First it will pass to all the processes subscribed to the event, and then it will pass to the ***focused space*** (if there is one).

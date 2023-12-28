@@ -27,6 +27,7 @@ pub struct Response {
 }
 
 impl Response {
+    /// construct new self
     pub fn new(content: ResponseContent) -> Self {
         Self {
             content,
@@ -35,6 +36,7 @@ impl Response {
         }
     }
 
+    /// construct new self as a response to a request
     pub fn new_with_request(content: ResponseContent, request: u32) -> Self {
         Self {
             content,
@@ -43,10 +45,12 @@ impl Response {
         }
     }
 
+    /// get id of self
     pub fn id(&self) -> u32 {
         self.id
     }
 
+    /// get content of self
     pub fn content(&self) -> &ResponseContent {
         &self.content
     }

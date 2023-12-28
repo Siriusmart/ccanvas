@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 
-use crate::structs::{Discriminator, Event, Pool, Storage};
+use crate::structs::{Discriminator, Event, Pool, Storage, Unevaluated};
 
 #[async_trait]
 /// a unit of "something"
@@ -19,5 +19,5 @@ pub trait Component {
 
     /// pass an event into a component
     /// returns true to pass event to next component, false otherwise
-    async fn pass(&self, event: &mut Event) -> bool;
+    async fn pass(&self, event: &mut Event) -> Unevaluated<bool>;
 }

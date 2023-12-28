@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::{error::Error, io::Write};
 
 use async_trait::async_trait;
+use termion::{color, cursor};
 use tokio::sync::Mutex;
 
 use crate::{traits::Component, values::SCREEN};
@@ -33,6 +34,7 @@ pub struct Space {
 
     /// process pool
     processes: Arc<Mutex<Collection<Process>>>,
+    // processes: Arc<Mutex<Collection<Process>>>,
 }
 
 impl Space {
@@ -60,10 +62,8 @@ impl Space {
         let mut listener = Event::start();
 
         while let Some(mut event) = listener.recv().await {
-            // write out the event for debugging purposes
+            // drop for quitting the entire application
             if let Event::RequestPacket(req) = &mut event {
-                // req.respond(Response::new_with_request(ResponseContent::Undelivered, *req.get().id())).unwrap();
-                // continue;
                 if req.get().content()
                     == &(RequestContent::Drop {
                         discrim: Some(Discriminator(vec![1])),
@@ -79,10 +79,10 @@ impl Space {
             tokio::spawn(async move {
                 arc.pass(&mut event).await;
             });
-            // let _ = arc.pass(&mut event).await;
         }
     }
 
+    /// insert a new process
     pub async fn spawn(
         &self,
         label: String,
@@ -115,51 +115,55 @@ impl Component for Space {
         &self.storage
     }
 
-    async fn pass(&self, event: &mut Event) -> bool {
+    async fn pass(&self, event: &mut Event) -> Unevaluated<bool> {
         match event {
-            // i have no idea what this branch does
-            // but i think it is unreachable, but shouldnt cause a panic
-            // as a bad request could reach this, so for now just ignore it
+            // if the target is self
             Event::RequestPacket(req) if req.get().target() == self.discrim() => {
                 match req.get().content() {
+                    // spawn a new process
                     RequestContent::Spawn {
                         command,
                         args,
                         label,
-                    } => match Process::spawn(
-                        label.clone(),
-                        &self.discrim,
-                        command.clone(),
-                        args.clone(),
-                    )
-                    .await
-                    {
-                        Ok(process) => {
-                            req.respond(Response::new_with_request(
-                                ResponseContent::Success {
-                                    content: ResponseSuccess::Spawned {
-                                        discrim: process.discrim().clone(),
+                    } => {
+                        // check if spawning process succeed
+                        match Process::spawn(
+                            label.clone(),
+                            &self.discrim,
+                            command.clone(),
+                            args.clone(),
+                        )
+                        .await
+                        {
+                            Ok(process) => {
+                                req.respond(Response::new_with_request(
+                                    ResponseContent::Success {
+                                        content: ResponseSuccess::Spawned {
+                                            discrim: process.discrim().clone(),
+                                        },
                                     },
-                                },
-                                *req.get().id(),
-                            ))
-                            .unwrap();
-                            self.processes.lock().await.insert(process);
+                                    *req.get().id(),
+                                ))
+                                .unwrap();
+                                self.processes.lock().await.insert(process);
+                            }
+                            Err(_) => req
+                                .respond(Response::new_with_request(
+                                    ResponseContent::Error {
+                                        content: ResponseError::SpawnFailed,
+                                    },
+                                    *req.get().id(),
+                                ))
+                                .unwrap(),
                         }
-                        Err(_) => req
-                            .respond(Response::new_with_request(
-                                ResponseContent::Error {
-                                    content: ResponseError::SpawnFailed,
-                                },
-                                *req.get().id(),
-                            ))
-                            .unwrap(),
-                    },
+                    }
+                    // add an item to passes
                     RequestContent::Subscribe {
                         channel,
                         priority,
                         component: Some(discrim),
                     } => {
+                        // checks if the discrim is to a valid process
                         if let Some(child) = self.discrim.immediate_child(discrim.clone()) {
                             if self.processes.lock().await.contains(&child) {
                                 // if its a process, subscribe to the event right here
@@ -174,6 +178,15 @@ impl Component for Space {
                                     *req.get().id(),
                                 ))
                                 .unwrap();
+                            } else {
+                                // or else just throw a not found
+                                req.respond(Response::new_with_request(
+                                    ResponseContent::Error {
+                                        content: ResponseError::ComponentNotFound,
+                                    },
+                                    *req.get().id(),
+                                ))
+                                .unwrap();
                             }
                         }
                     }
@@ -181,12 +194,13 @@ impl Component for Space {
                         // drop (remove) a child component
                         if let Some(child) = self.discrim.immediate_child(discrim.clone().unwrap())
                         {
-                            if self.processes.lock().await.contains(&child) {
+                            if self.processes.lock().await.remove(&child) {
+                                // if its a process, then remove all of its passes
                                 self.passes.lock().await.unsub_all(&child);
-                                self.processes.lock().await.remove(&child);
-                            } else if self.subspaces.lock().await.contains(&child) {
-                                self.subspaces.lock().await.remove(&child);
+                            } else if self.subspaces.lock().await.remove(&child) {
                                 if *self.focus.lock().await == Focus::Children(child) {
+                                    // if the removed space is currently focused, then switch focus
+                                    // to parent space
                                     *self.focus.lock().await = Focus::This
                                 }
                             } else {
@@ -197,7 +211,7 @@ impl Component for Space {
                                     *req.get().id(),
                                 ))
                                 .unwrap();
-                                return false;
+                                return false.into();
                             }
                             req.respond(Response::new_with_request(
                                 ResponseContent::Success {
@@ -208,16 +222,78 @@ impl Component for Space {
                             .unwrap();
                         }
                     }
-                    RequestContent::Render {
-                        content: RenderRequest::SetChar { x, y, c },
-                    } => {
-                        write!(
-                            unsafe { SCREEN.get_mut() }.unwrap(),
-                            "{}{c}",
-                            termion::cursor::Goto(*x as u16 + 1, *y as u16 + 1)
-                        )
-                        .unwrap();
-                        unsafe { SCREEN.get_mut() }.unwrap().flush().unwrap();
+                    RequestContent::Render { content, flush } => {
+                        // does rendering stuff, no explainations needed
+                        let mut flush = *flush;
+                        match content {
+                            RenderRequest::SetChar { x, y, c } => {
+                                write!(
+                                    unsafe { SCREEN.get_mut() }.unwrap(),
+                                    "{}{c}",
+                                    termion::cursor::Goto(*x as u16 + 1, *y as u16 + 1)
+                                )
+                                .unwrap();
+                            }
+                            RenderRequest::SetCharColoured { x, y, c, fg, bg } => {
+                                write!(
+                                    unsafe { SCREEN.get_mut() }.unwrap(),
+                                    "{}{}{}{c}{}{}",
+                                    color::Fg(*fg),
+                                    color::Bg(*bg),
+                                    termion::cursor::Goto(*x as u16 + 1, *y as u16 + 1),
+                                    color::Fg(termion::color::Reset),
+                                    color::Bg(termion::color::Reset),
+                                )
+                                .unwrap();
+                            }
+                            RenderRequest::Flush => flush = true,
+                            RenderRequest::SetCursorStyle { style } => match style {
+                                CursorStyle::BlinkingBar => write!(
+                                    unsafe { SCREEN.get_mut() }.unwrap(),
+                                    "{}",
+                                    cursor::BlinkingBar
+                                ),
+                                CursorStyle::BlinkingBlock => write!(
+                                    unsafe { SCREEN.get_mut() }.unwrap(),
+                                    "{}",
+                                    cursor::BlinkingBlock
+                                ),
+                                CursorStyle::BlinkingUnderline => write!(
+                                    unsafe { SCREEN.get_mut() }.unwrap(),
+                                    "{}",
+                                    cursor::BlinkingUnderline
+                                ),
+                                CursorStyle::SteadyBar => write!(
+                                    unsafe { SCREEN.get_mut() }.unwrap(),
+                                    "{}",
+                                    cursor::SteadyBar
+                                ),
+                                CursorStyle::SteadyBlock => write!(
+                                    unsafe { SCREEN.get_mut() }.unwrap(),
+                                    "{}",
+                                    cursor::SteadyBlock
+                                ),
+                                CursorStyle::SteadyUnderline => write!(
+                                    unsafe { SCREEN.get_mut() }.unwrap(),
+                                    "{}",
+                                    cursor::SteadyUnderline
+                                ),
+                            }
+                            .unwrap(),
+                            RenderRequest::HideCursor => {
+                                write!(unsafe { SCREEN.get_mut() }.unwrap(), "{}", cursor::Hide)
+                                    .unwrap()
+                            }
+                            RenderRequest::ShowCursor => {
+                                write!(unsafe { SCREEN.get_mut() }.unwrap(), "{}", cursor::Show)
+                                    .unwrap()
+                            }
+                        }
+
+                        if flush {
+                            unsafe { SCREEN.get_mut() }.unwrap().flush().unwrap();
+                        }
+
                         req.respond(Response::new_with_request(
                             ResponseContent::Success {
                                 content: ResponseSuccess::Rendered,
@@ -226,12 +302,39 @@ impl Component for Space {
                         ))
                         .unwrap();
                     }
+                    RequestContent::Message {
+                        content,
+                        sender,
+                        target,
+                    } => {
+                        // heres all the things needed to construct an event
+                        let sender = sender.clone();
+                        let target = target.clone();
+                        let content = content.clone();
+
+                        req.respond(Response::new_with_request(
+                            ResponseContent::Success {
+                                content: ResponseSuccess::MessageDelivered,
+                            },
+                            *req.get().id(),
+                        ))
+                        .unwrap();
+
+                        // now pass the event to self
+                        *event = Event::Message {
+                            sender,
+                            target,
+                            content,
+                        };
+
+                        self.pass(event).await;
+                    }
                     RequestContent::Subscribe { .. }
                     | RequestContent::ConfirmRecieve { .. }
                     | RequestContent::SetSocket { .. } => unreachable!("not requests to spaces"),
                 }
 
-                return false;
+                return false.into();
             } // do stuff
             Event::RequestPacket(req) => {
                 // pass the event to "next immediate child"
@@ -240,7 +343,26 @@ impl Component for Space {
                 if let Some(child) = self.discrim.immediate_child(req.get().target().clone()) {
                     // no 2 components are the same, so order shouldnt matter
                     if let Some(proc) = self.processes.lock().await.find_by_discrim(&child) {
-                        proc.pass(event).await;
+                        if let Some(subscriptions) = req.get().subscriptions() {
+                            if self
+                                .passes
+                                .lock()
+                                .await
+                                .subscribers(subscriptions)
+                                .iter()
+                                .any(|item| item.discrim() == proc.discrim())
+                            {
+                                proc.pass(event).await;
+                            } else {
+                                req.respond(Response::new_with_request(
+                                    ResponseContent::Undelivered,
+                                    *req.get().id(),
+                                ))
+                                .unwrap();
+                            }
+                        } else {
+                            proc.pass(event).await;
+                        }
                     } else if let Some(space) = self.subspaces.lock().await.find_by_discrim(&child)
                     {
                         space.pass(event).await;
@@ -249,7 +371,7 @@ impl Component for Space {
                             .unwrap();
                     }
 
-                    return false;
+                    return false.into();
                 }
                 // otherwise self is not a parent to the target component
                 // and something went wrong
@@ -262,22 +384,23 @@ impl Component for Space {
 
         // repeat until someone decide to capture the event
         for target in targets {
-            if !self
+            let res = self
                 .processes
                 .lock()
                 .await
                 .find_by_discrim(target.discrim())
                 .unwrap()
                 .pass(event)
-                .await
-            {
-                return false;
+                .await;
+            let res = res.evaluate().await;
+            if !res {
+                return false.into();
             }
         }
 
         // if all went well then continue to pass down into subspaces
         if let Focus::Children(discrim) = &*self.focus.lock().await {
-            self.processes
+            self.subspaces
                 .lock()
                 .await
                 .find_by_discrim(discrim)
@@ -286,6 +409,6 @@ impl Component for Space {
                 .await;
         }
 
-        true
+        true.into()
     }
 }

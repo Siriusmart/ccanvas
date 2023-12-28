@@ -179,44 +179,48 @@ impl Process {
                         Err(_) => continue,
                     };
 
-                    // if the request is a confirmation to a response
-                    // then confirm the response and unblock the self.pass() thing
-                    // by sending a message
-
-                    if let RequestContent::ConfirmRecieve { id, pass } = request.content() {
-                        let confirm_handles = confirm_handles.clone();
-                        let id = *id;
-                        let pass = *pass;
-                        tokio::spawn(async move {
-                            if let Entry::Occupied(entry) = confirm_handles.lock().await.entry(id) {
-                                let _ = entry.remove_entry().1.send(pass);
-                            }
-                        });
-                        continue;
-                    }
-
-                    match request.content() {
-                        RequestContent::ConfirmRecieve { .. } => unreachable!(),
+                    // modify requests
+                    match request.content_mut() {
+                        RequestContent::ConfirmRecieve { id, pass } => {
+                            // if the request is a confirmation to a response
+                            // then confirm the response and unblock the self.pass() thing
+                            // by sending a message
+                            let confirm_handles = confirm_handles.clone();
+                            let id = *id;
+                            let pass = *pass;
+                            tokio::spawn(async move {
+                                if let Entry::Occupied(entry) =
+                                    confirm_handles.lock().await.entry(id)
+                                {
+                                    let _ = entry.remove_entry().1.send(pass);
+                                }
+                            });
+                            continue;
+                        }
                         RequestContent::Subscribe { .. } | RequestContent::SetSocket { .. } => {
+                            // these requests goes to self
                             *request.target_mut() = discrim.clone()
                         }
                         RequestContent::Drop { discrim: to_drop } => {
+                            // this goes to parent space
                             let to_drop = to_drop.as_ref().unwrap_or(&discrim).clone();
                             *request.target_mut() = to_drop.clone().immediate_parent().unwrap();
                             *request.content_mut() = RequestContent::Drop {
                                 discrim: Some(to_drop),
                             };
                         }
-                        RequestContent::Render {
-                            content: RenderRequest::SetChar { .. },
-                        } => {
-                            *request.target_mut() = Discriminator::master();
+                        RequestContent::Render { .. } => {
+                            // this goes to master space
+                            *request.target_mut() = Discriminator::master()
                         }
                         RequestContent::Spawn { .. } => {
+                            // this goes to master space only when target is not specified
                             if request.target().is_empty() {
                                 *request.target_mut() = discrim.clone().immediate_parent().unwrap();
                             }
                         }
+                        // mark self as sender
+                        RequestContent::Message { sender, .. } => *sender = discrim.clone(),
                     }
 
                     let responder = responder.clone();
@@ -240,7 +244,6 @@ impl Process {
             storage,
             pool: Pool::default(),
             discrim,
-            // subscriptions: Subscriptions::default(),
             command: [command].into_iter().chain(args).collect(),
             listener,
             responder,
@@ -304,6 +307,29 @@ impl Process {
                 // current functions to
                 // finish
             }
+            RequestContent::Message {
+                content,
+                sender,
+                target,
+            } => {
+                let mut event = Event::Message {
+                    sender: sender.clone(),
+                    target: target.clone(),
+                    content: content.clone(),
+                };
+                packet
+                    .respond(Response::new_with_request(
+                        ResponseContent::Success {
+                            content: ResponseSuccess::MessageDelivered,
+                        },
+                        *packet.get().id(),
+                    ))
+                    .unwrap();
+                // unwraps the request, and pass to self as an event
+                // which will then get sent to the client as a normal event
+                let _ = self.pass(&mut event).await;
+            }
+            // spawn should be passed to spaces, no processes
             RequestContent::Spawn { .. } => packet
                 .respond(Response::new_with_request(
                     ResponseContent::Undelivered,
@@ -321,11 +347,11 @@ impl Process {
     }
 
     /// send a response and wait for confirmation
-    pub async fn send_event(&self, resp: Response) -> Result<bool, crate::Error> {
+    pub async fn send_event(&self, resp: Response) -> oneshot::Receiver<bool> {
         let (tx, rx) = oneshot::channel();
         self.confirm_handles.lock().await.insert(resp.id(), tx);
         self.res.send(resp).unwrap();
-        rx.await.map_err(|_| crate::Error::Undelivered)
+        rx
     }
 }
 
@@ -347,21 +373,23 @@ impl Component for Process {
         &self.storage
     }
 
-    async fn pass(&self, event: &mut Event) -> bool {
+    async fn pass(&self, event: &mut Event) -> Unevaluated<bool> {
         // requestpacket is a request, not an event in a real sense
         // and it doesnt serialise into EventSerde either
         // so best just handle it out and filter it first
         if let Event::RequestPacket(packet) = event {
             self.handle(packet).await;
-            return false;
+            return false.into();
         }
 
         let resp = Response::new(ResponseContent::Event {
             content: EventSerde::from_event(event),
         });
 
-        // send and blocks
-        self.send_event(resp).await.unwrap_or(true)
+        let rx = self.send_event(resp).await;
+        // dont block
+        // or else it will keep parent.processes locked
+        Unevaluated::Unevaluated(tokio::spawn(async move { rx.await.unwrap_or(true) }))
     }
 }
 

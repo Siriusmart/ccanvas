@@ -16,10 +16,12 @@ pub struct PassItem {
 }
 
 impl PassItem {
+    /// get discrim of self
     pub fn discrim(&self) -> &Discriminator {
         &self.discrim
     }
 
+    /// convenience function to create new self
     pub fn new(discrim: Discriminator, priority: Option<u32>) -> Self {
         Self { priority, discrim }
     }
@@ -35,6 +37,7 @@ impl PartialEq for PassItem {
 /// and pass events only to them in order of priority
 #[derive(Default)]
 pub struct Passes {
+    /// real content of the struct
     subscriptions: HashMap<Subscription, Vec<PassItem>>,
 }
 
@@ -78,6 +81,8 @@ impl Passes {
         false
     }
 
+    /// unsubscribe all subscriptions of that component
+    /// used when the component is to be dropped
     pub fn unsub_all(&mut self, discrim: &Discriminator) {
         let mut to_drop = Vec::new();
         self.subscriptions.iter_mut().for_each(|(key, items)| {

@@ -74,6 +74,7 @@ impl Event {
         rx
     }
 
+    /// send an event to the main event stream
     pub fn send(event: Event) {
         EVENTS.get().unwrap().send(event).unwrap();
     }

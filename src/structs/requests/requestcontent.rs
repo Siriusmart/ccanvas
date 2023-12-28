@@ -37,7 +37,7 @@ pub enum RequestContent {
 
     #[serde(rename = "render")]
     /// render something to the terminal
-    Render { content: RenderRequest },
+    Render { content: RenderRequest, flush: bool },
 
     #[serde(rename = "spawn")]
     /// spawn a new process
@@ -45,6 +45,16 @@ pub enum RequestContent {
         command: String,
         args: Vec<String>,
         label: String,
+    },
+
+    #[serde(rename = "message")]
+    /// send a message to another component
+    /// if target specifies a space,
+    /// all components under that space will recieve the message
+    Message {
+        content: String,
+        sender: Discriminator,
+        target: Discriminator,
     },
 }
 

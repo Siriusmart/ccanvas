@@ -1,4 +1,4 @@
-use crate::structs::{Discriminator, Event, Packet, Response, ResponseContent};
+use crate::structs::{Discriminator, Event, Packet, Response, ResponseContent, Subscription};
 
 use super::RequestContent;
 use serde::Deserialize;
@@ -25,6 +25,7 @@ fn req_id() -> u32 {
 }
 
 impl Request {
+    /// construct new self
     pub fn new(target: Discriminator, content: RequestContent) -> Self {
         Self {
             target,
@@ -67,5 +68,13 @@ impl Request {
     /// get request id
     pub fn id(&self) -> &u32 {
         &self.id
+    }
+
+    /// returns subscriptions that would want to take in self
+    pub fn subscriptions(&self) -> Option<&[Subscription]> {
+        match self.content {
+            RequestContent::Message { .. } => Some(&[Subscription::AllMessages]),
+            _ => None,
+        }
     }
 }

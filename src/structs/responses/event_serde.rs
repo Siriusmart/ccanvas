@@ -1,4 +1,4 @@
-use crate::structs::{Event, KeyEvent, MouseEvent};
+use crate::structs::{Discriminator, Event, KeyEvent, MouseEvent};
 
 use serde::Serialize;
 
@@ -8,11 +8,19 @@ pub enum EventSerde {
     /// keyboard event
     #[serde(rename = "key")]
     Key(KeyEvent),
+    /// mouse event
     #[serde(rename = "mouse")]
     Mouse(MouseEvent),
     /// screen resize event (should trigger a rerender)
     #[serde(rename = "resize")]
     Resize { width: u32, height: u32 },
+    /// message passed from another process
+    #[serde(rename = "message")]
+    Message {
+        sender: Discriminator,
+        target: Discriminator,
+        content: String,
+    },
 }
 
 impl EventSerde {
@@ -24,6 +32,15 @@ impl EventSerde {
                 height: *height,
             },
             Event::MouseEvent(mouse) => Self::Mouse(*mouse),
+            Event::Message {
+                sender,
+                target,
+                content,
+            } => Self::Message {
+                sender: sender.clone(),
+                target: target.clone(),
+                content: content.clone(),
+            },
             Event::RequestPacket(_) => unreachable!("should not happend"),
         }
     }

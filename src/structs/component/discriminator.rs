@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::OnceCell;
 
 static mut DISCRIM: OnceCell<u32> = OnceCell::const_new_with(0);
+/// get a unique discriminator chunk
 pub fn discrim() -> u32 {
     let discrim = unsafe { DISCRIM.get_mut().unwrap() };
     *discrim += 1;
@@ -56,6 +57,7 @@ impl Discriminator {
         Self(vec![1])
     }
 
+    /// check if discriminator is empty (would be invalid)
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }

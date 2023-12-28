@@ -7,8 +7,9 @@ use std::{fs, io::Write};
 pub fn exit() {
     write!(
         unsafe { SCREEN.get_mut().unwrap() },
-        "{}{}",
+        "{}{}{}",
         termion::cursor::Show,
+        termion::cursor::Restore,
         termion::screen::ToMainScreen,
     )
     .unwrap();

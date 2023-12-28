@@ -1,4 +1,4 @@
-use crate::structs::{Packet, Request, Response, Subscription};
+use crate::structs::{Discriminator, Packet, Request, Response, Subscription};
 
 use super::{KeyEvent, MouseEvent};
 
@@ -15,6 +15,12 @@ pub enum Event {
     ScreenResize(u32, u32),
     /// request that requires a response
     RequestPacket(Packet<Request, Response>),
+    /// message sent from a component
+    Message {
+        sender: Discriminator,
+        target: Discriminator,
+        content: String,
+    },
 }
 
 impl TryFrom<TermionEvent> for Event {
@@ -33,6 +39,7 @@ impl Event {
     pub fn subscriptions(&self) -> &[Subscription] {
         match self {
             Self::KeyPress(_keyevent) => &[Subscription::AllKeyPresses],
+            Self::Message { .. } => &[Subscription::AllMessages],
             _ => &[],
         }
     }

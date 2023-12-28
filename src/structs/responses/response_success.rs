@@ -5,18 +5,27 @@ use crate::structs::Discriminator;
 #[derive(Serialize, Clone, PartialEq, Debug)]
 #[serde(tag = "type")]
 pub enum ResponseSuccess {
+    /// subscription added
     #[serde(rename = "subscribe added")]
     SubscribeAdded,
 
+    /// listener socket set
     #[serde(rename = "listener set")]
     ListenerSet,
 
+    /// component dropped
     #[serde(rename = "dropped")]
     Dropped,
 
+    /// render task completed
     #[serde(rename = "rendered")]
     Rendered,
 
+    /// process spawned with discrim
     #[serde(rename = "spawned")]
     Spawned { discrim: Discriminator },
+
+    /// message delivered ot target
+    #[serde(rename = "message delivered")]
+    MessageDelivered,
 }
