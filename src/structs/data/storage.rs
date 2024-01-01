@@ -9,6 +9,7 @@ use crate::structs::Discriminator;
 use crate::values::ROOT;
 
 /// wrapper struct for storage of a single component
+#[derive(Clone)]
 pub struct Storage {
     // absolute path to directory
     path: PathBuf,

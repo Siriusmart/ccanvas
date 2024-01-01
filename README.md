@@ -1,6 +1,6 @@
 # ccanvas
 
-ccanvas allows multiple programs to draw on the same terminal in an async/non-blocking manner.
+ccanvas allows multiple programs to draw on the same terminal in an async/non-blocking manner. To create a ccanvas component, see [libccanvas](https://github.com/Siriusmart/libccanvas).
 
 > **ccanvas uses unix sockets**, which may not be available on windows.
 
@@ -9,6 +9,8 @@ ccanvas allows multiple programs to draw on the same terminal in an async/non-bl
 Click on the image for video.
 
 [![](https://gmtex.siri.sh/api/usercontent/v1/file/id/1/tex/Dump/Showcases/ccanvas-snake.png)](https://gmtex.siri.sh/fs/1/Dump/Showcases/ccanvas-snake.webm)
+
+[Source](https://github.com/Siriusmart/libccanvas/tree/master/examples/snake)
 
 ## Backstory
 
@@ -60,3 +62,11 @@ All 3 of these event sources are funnelled into a single ***event stream***, whe
 3. All events are passed into the ***master space***.
 
 The space will then decide where should the event be passed to. First it will pass to all the processes subscribed to the event, and then it will pass to the ***focused space*** (if there is one).
+
+## TODO
+
+Here are some of the planned features not yet implemented - in order of priority.
+
+- Specific subscriptions - specific key presses, message from only a component.
+- Create, focus, and manage spaces.
+- Space focus/unfocus events.

@@ -1,4 +1,8 @@
 use serde::Deserialize;
+use std::io::Write;
+use termion::{color, cursor};
+
+use crate::values::SCREEN;
 
 #[derive(Deserialize, Clone, PartialEq, Eq, Debug)]
 #[serde(tag = "type")]
@@ -27,6 +31,82 @@ pub enum RenderRequest {
     #[serde(rename = "show cursor")]
     /// show cursor
     ShowCursor,
+
+    #[serde(rename = "render multiple")]
+    /// complete multiple render tasks at the same time - e.g. stacking changes
+    RenderMultiple { tasks: Vec<Self> },
+}
+
+impl RenderRequest {
+    pub fn draw(&self, mut flush: bool) {
+        match self {
+            Self::SetChar { x, y, c } => {
+                write!(
+                    unsafe { SCREEN.get_mut() }.unwrap(),
+                    "{}{c}",
+                    termion::cursor::Goto(*x as u16 + 1, *y as u16 + 1)
+                )
+                .unwrap();
+            }
+            Self::SetCharColoured { x, y, c, fg, bg } => {
+                write!(
+                    unsafe { SCREEN.get_mut() }.unwrap(),
+                    "{}{}{}{c}{}{}",
+                    color::Fg(*fg),
+                    color::Bg(*bg),
+                    termion::cursor::Goto(*x as u16 + 1, *y as u16 + 1),
+                    color::Fg(termion::color::Reset),
+                    color::Bg(termion::color::Reset),
+                )
+                .unwrap();
+            }
+            Self::Flush => flush = true,
+            Self::SetCursorStyle { style } => match style {
+                CursorStyle::BlinkingBar => write!(
+                    unsafe { SCREEN.get_mut() }.unwrap(),
+                    "{}",
+                    cursor::BlinkingBar
+                ),
+                CursorStyle::BlinkingBlock => write!(
+                    unsafe { SCREEN.get_mut() }.unwrap(),
+                    "{}",
+                    cursor::BlinkingBlock
+                ),
+                CursorStyle::BlinkingUnderline => write!(
+                    unsafe { SCREEN.get_mut() }.unwrap(),
+                    "{}",
+                    cursor::BlinkingUnderline
+                ),
+                CursorStyle::SteadyBar => write!(
+                    unsafe { SCREEN.get_mut() }.unwrap(),
+                    "{}",
+                    cursor::SteadyBar
+                ),
+                CursorStyle::SteadyBlock => write!(
+                    unsafe { SCREEN.get_mut() }.unwrap(),
+                    "{}",
+                    cursor::SteadyBlock
+                ),
+                CursorStyle::SteadyUnderline => write!(
+                    unsafe { SCREEN.get_mut() }.unwrap(),
+                    "{}",
+                    cursor::SteadyUnderline
+                ),
+            }
+            .unwrap(),
+            Self::HideCursor => {
+                write!(unsafe { SCREEN.get_mut() }.unwrap(), "{}", cursor::Hide).unwrap()
+            }
+            Self::ShowCursor => {
+                write!(unsafe { SCREEN.get_mut() }.unwrap(), "{}", cursor::Show).unwrap()
+            }
+            Self::RenderMultiple { tasks } => tasks.iter().for_each(|item| item.draw(false)),
+        }
+
+        if flush {
+            unsafe { SCREEN.get_mut() }.unwrap().flush().unwrap();
+        }
+    }
 }
 
 #[derive(Deserialize, Clone, PartialEq, Eq, Debug)]

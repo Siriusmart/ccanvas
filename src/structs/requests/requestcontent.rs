@@ -27,6 +27,12 @@ pub enum RequestContent {
         component: Option<Discriminator>,
     },
 
+    #[serde(rename = "Unsubscribe")]
+    /// remove subscription from a channel
+    Unsubscribe {
+        channel: Subscription,
+        component: Option<Discriminator>,
+    },
     #[serde(rename = "set socket")]
     /// sent responses to this socket
     SetSocket { path: PathBuf },

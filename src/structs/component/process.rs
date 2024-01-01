@@ -154,6 +154,7 @@ impl Process {
             let discrim = discrim.clone();
             let confirm_handles = confirm_handles.clone();
             let responder = responder_send.clone();
+            let storage = storage.clone();
             tokio::spawn(async move {
                 // creates a socket and listens to it
                 let socket =
@@ -197,9 +198,71 @@ impl Process {
                             });
                             continue;
                         }
-                        RequestContent::Subscribe { .. } | RequestContent::SetSocket { .. } => {
+                        RequestContent::Subscribe {
+                            channel,
+                            priority,
+                            component: _,
+                        } => {
+                            // first add the channel to self as a record
+                            // and send a register event to the master space
+                            // which is eventually get sent to the parent space
+                            // and get added as into the passes
+                            *request.content_mut() = RequestContent::Subscribe {
+                                channel: channel.clone(),
+                                priority: *priority,
+                                component: Some(discrim.clone()),
+                            };
+                            *request.target_mut() = discrim.clone().immediate_parent().unwrap();
+                            responder
+                                .send(Response::new_with_request(
+                                    ResponseContent::Success {
+                                        content: ResponseSuccess::SubscribeAdded,
+                                    },
+                                    *request.id(),
+                                ))
+                                .unwrap();
+                        }
+                        RequestContent::Unsubscribe {
+                            channel,
+                            component: _,
+                        } => {
+                            // first add the channel to self as a record
+                            // and send a register event to the master space
+                            // which is eventually get sent to the parent space
+                            // and get added as into the passes
+                            *request.content_mut() = RequestContent::Unsubscribe {
+                                channel: channel.clone(),
+                                component: Some(discrim.clone()),
+                            };
+                            *request.target_mut() = discrim.clone().immediate_parent().unwrap();
+                            responder
+                                .send(Response::new_with_request(
+                                    ResponseContent::Success {
+                                        content: ResponseSuccess::SubscribeRemoved,
+                                    },
+                                    *request.id(),
+                                ))
+                                .unwrap();
+                        }
+                        RequestContent::SetSocket { path } => {
                             // these requests goes to self
-                            *request.target_mut() = discrim.clone()
+                            responder
+                                .send(Response::new_with_request(
+                                    ResponseContent::SetSocket(storage.path().join(path)),
+                                    *request.id(),
+                                ))
+                                .unwrap();
+
+                            responder
+                                .send(Response::new_with_request(
+                                    ResponseContent::Success {
+                                        // this can never fail
+                                        content: ResponseSuccess::ListenerSet,
+                                    },
+                                    *request.id(), // this is a response
+                                ))
+                                .unwrap();
+                            continue;
                         }
                         RequestContent::Drop { discrim: to_drop } => {
                             // this goes to parent space
@@ -255,58 +318,6 @@ impl Process {
     pub async fn handle(&self, packet: &mut Packet<Request, Response>) {
         match packet.get().content() {
             // if it is a setsocket
-            RequestContent::SetSocket { path } => {
-                // tell the responder to use that socket
-                self.res
-                    .send(Response::new_with_request(
-                        ResponseContent::SetSocket(self.storage.path().join(path)),
-                        *packet.get().id(),
-                    ))
-                    .unwrap();
-                // and resolve the packet
-                packet
-                    .respond(Response::new_with_request(
-                        ResponseContent::Success {
-                            // this can never fail
-                            content: ResponseSuccess::ListenerSet,
-                        },
-                        *packet.get().id(), // this is a response
-                    ))
-                    .unwrap();
-            }
-            RequestContent::Subscribe {
-                channel,
-                priority,
-                component: _,
-            } => {
-                // first add the channel to self as a record
-                // and send a register event to the master space
-                // which is eventually get sent to the parent space
-                // and get added as into the passes
-                let mut request = packet.get().clone();
-                *request.target_mut() = self.discrim.clone().immediate_parent().unwrap();
-                *request.content_mut() = RequestContent::Subscribe {
-                    channel: channel.clone(),
-                    priority: *priority,
-                    component: Some(self.discrim.clone()),
-                };
-                let (event, recv): (Packet<Request, Response>, _) = Packet::new(request);
-                Event::send(Event::RequestPacket(event));
-                packet
-                    .respond(Response::new_with_request(
-                        ResponseContent::Success {
-                            content: ResponseSuccess::SubscribeAdded,
-                        },
-                        *packet.get().id(),
-                    ))
-                    .unwrap();
-
-                std::mem::drop(tokio::spawn(async { recv.await.unwrap() }));
-                // this must not block
-                // as it also wait for the
-                // current functions to
-                // finish
-            }
             RequestContent::Message {
                 content,
                 sender,
@@ -339,7 +350,10 @@ impl Process {
             // confirmreceive gets filtered out and handles in the listener loop
             // so we will never get it
             RequestContent::ConfirmRecieve { .. }
+            | RequestContent::Unsubscribe { .. }
             | RequestContent::Drop { .. }
+            | RequestContent::Subscribe { .. }
+            | RequestContent::SetSocket { .. }
             | RequestContent::Render { .. } => {
                 unreachable!("not a real request")
             }

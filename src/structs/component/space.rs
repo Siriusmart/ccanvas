@@ -1,11 +1,10 @@
+use std::error::Error;
 use std::sync::Arc;
-use std::{error::Error, io::Write};
 
 use async_trait::async_trait;
-use termion::{color, cursor};
 use tokio::sync::Mutex;
 
-use crate::{traits::Component, values::SCREEN};
+use crate::traits::Component;
 
 use crate::structs::*;
 
@@ -190,6 +189,38 @@ impl Component for Space {
                             }
                         }
                     }
+                    // remove an item from
+                    RequestContent::Unsubscribe {
+                        channel,
+                        component: Some(discrim),
+                    } => {
+                        // checks if the discrim is to a valid process
+                        if let Some(child) = self.discrim.immediate_child(discrim.clone()) {
+                            if self.processes.lock().await.contains(&child) {
+                                // if its a process, subscribe to the event right here
+                                self.passes
+                                    .lock()
+                                    .await
+                                    .unsubscribe(channel.clone(), discrim);
+                                req.respond(Response::new_with_request(
+                                    ResponseContent::Success {
+                                        content: ResponseSuccess::SubscribeRemoved,
+                                    },
+                                    *req.get().id(),
+                                ))
+                                .unwrap();
+                            } else {
+                                // or else just throw a not found
+                                req.respond(Response::new_with_request(
+                                    ResponseContent::Error {
+                                        content: ResponseError::ComponentNotFound,
+                                    },
+                                    *req.get().id(),
+                                ))
+                                .unwrap();
+                            }
+                        }
+                    }
                     RequestContent::Drop { discrim } => {
                         // drop (remove) a child component
                         if let Some(child) = self.discrim.immediate_child(discrim.clone().unwrap())
@@ -224,75 +255,7 @@ impl Component for Space {
                     }
                     RequestContent::Render { content, flush } => {
                         // does rendering stuff, no explainations needed
-                        let mut flush = *flush;
-                        match content {
-                            RenderRequest::SetChar { x, y, c } => {
-                                write!(
-                                    unsafe { SCREEN.get_mut() }.unwrap(),
-                                    "{}{c}",
-                                    termion::cursor::Goto(*x as u16 + 1, *y as u16 + 1)
-                                )
-                                .unwrap();
-                            }
-                            RenderRequest::SetCharColoured { x, y, c, fg, bg } => {
-                                write!(
-                                    unsafe { SCREEN.get_mut() }.unwrap(),
-                                    "{}{}{}{c}{}{}",
-                                    color::Fg(*fg),
-                                    color::Bg(*bg),
-                                    termion::cursor::Goto(*x as u16 + 1, *y as u16 + 1),
-                                    color::Fg(termion::color::Reset),
-                                    color::Bg(termion::color::Reset),
-                                )
-                                .unwrap();
-                            }
-                            RenderRequest::Flush => flush = true,
-                            RenderRequest::SetCursorStyle { style } => match style {
-                                CursorStyle::BlinkingBar => write!(
-                                    unsafe { SCREEN.get_mut() }.unwrap(),
-                                    "{}",
-                                    cursor::BlinkingBar
-                                ),
-                                CursorStyle::BlinkingBlock => write!(
-                                    unsafe { SCREEN.get_mut() }.unwrap(),
-                                    "{}",
-                                    cursor::BlinkingBlock
-                                ),
-                                CursorStyle::BlinkingUnderline => write!(
-                                    unsafe { SCREEN.get_mut() }.unwrap(),
-                                    "{}",
-                                    cursor::BlinkingUnderline
-                                ),
-                                CursorStyle::SteadyBar => write!(
-                                    unsafe { SCREEN.get_mut() }.unwrap(),
-                                    "{}",
-                                    cursor::SteadyBar
-                                ),
-                                CursorStyle::SteadyBlock => write!(
-                                    unsafe { SCREEN.get_mut() }.unwrap(),
-                                    "{}",
-                                    cursor::SteadyBlock
-                                ),
-                                CursorStyle::SteadyUnderline => write!(
-                                    unsafe { SCREEN.get_mut() }.unwrap(),
-                                    "{}",
-                                    cursor::SteadyUnderline
-                                ),
-                            }
-                            .unwrap(),
-                            RenderRequest::HideCursor => {
-                                write!(unsafe { SCREEN.get_mut() }.unwrap(), "{}", cursor::Hide)
-                                    .unwrap()
-                            }
-                            RenderRequest::ShowCursor => {
-                                write!(unsafe { SCREEN.get_mut() }.unwrap(), "{}", cursor::Show)
-                                    .unwrap()
-                            }
-                        }
-
-                        if flush {
-                            unsafe { SCREEN.get_mut() }.unwrap().flush().unwrap();
-                        }
+                        content.draw(*flush);
 
                         req.respond(Response::new_with_request(
                             ResponseContent::Success {
@@ -329,9 +292,15 @@ impl Component for Space {
 
                         self.pass(event).await;
                     }
-                    RequestContent::Subscribe { .. }
-                    | RequestContent::ConfirmRecieve { .. }
-                    | RequestContent::SetSocket { .. } => unreachable!("not requests to spaces"),
+                    RequestContent::Subscribe {
+                        component: None, ..
+                    }
+                    | RequestContent::Unsubscribe {
+                        component: None, ..
+                    } => unreachable!("impossible requests"),
+                    RequestContent::ConfirmRecieve { .. } | RequestContent::SetSocket { .. } => {
+                        unreachable!("not requests to spaces")
+                    }
                 }
 
                 return false.into();
