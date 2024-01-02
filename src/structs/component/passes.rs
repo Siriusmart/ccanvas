@@ -44,6 +44,19 @@ pub struct Passes {
 impl Passes {
     /// add pass item
     pub fn subscribe(&mut self, subscription: Subscription, item: PassItem) {
+        if let Subscription::Multiple { subs } = subscription {
+            subs.into_iter().for_each(|(sub, priority)| {
+                self.subscribe(
+                    sub,
+                    PassItem {
+                        priority,
+                        discrim: item.discrim.clone(),
+                    },
+                )
+            });
+            return;
+        }
+
         let items = self.subscriptions.entry(subscription).or_default();
 
         if let Some(index) = items.iter().position(|x| x.discrim() == item.discrim()) {

@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use termion::event;
 
 /// a single mouse event
@@ -9,7 +9,7 @@ pub struct MouseEvent {
     y: u32,
     #[serde(rename = "type")]
     /// what kind of event it is
-    r#type: MouseType,
+    pub r#type: MouseType,
 }
 
 impl From<event::MouseEvent> for MouseEvent {
@@ -35,7 +35,7 @@ impl From<event::MouseEvent> for MouseEvent {
 }
 
 /// what kind of mouse event it is
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize)]
+#[derive(Hash, PartialEq, Eq, Serialize, Deserialize, Debug, Clone, Copy)]
 pub enum MouseType {
     /// The left mouse button.
     Left,

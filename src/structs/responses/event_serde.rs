@@ -21,6 +21,10 @@ pub enum EventSerde {
         target: Discriminator,
         content: String,
     },
+    #[serde(rename = "focused")]
+    Focused,
+    #[serde(rename = "unfocused")]
+    Unfocused,
 }
 
 impl EventSerde {
@@ -41,6 +45,8 @@ impl EventSerde {
                 target: target.clone(),
                 content: content.clone(),
             },
+            Event::Focus => Self::Focused,
+            Event::Unfocus => Self::Unfocused,
             Event::RequestPacket(_) => unreachable!("should not happend"),
         }
     }

@@ -67,6 +67,5 @@ The space will then decide where should the event be passed to. First it will pa
 
 Here are some of the planned features not yet implemented - in order of priority.
 
-- Specific subscriptions - specific key presses, message from only a component.
 - Create, focus, and manage spaces.
 - Space focus/unfocus events.

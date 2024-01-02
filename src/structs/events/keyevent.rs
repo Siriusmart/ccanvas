@@ -1,13 +1,13 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use termion::event::Key as TermionKey;
 
 /// a single keyboard event
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize, Hash)]
 pub struct KeyEvent {
     /// the keycode represented by the characetr
-    code: KeyCode,
+    pub code: KeyCode,
     /// key modifiers (e.g. ctrl)
-    modifier: KeyModifier,
+    pub modifier: KeyModifier,
 }
 
 impl TryFrom<TermionKey> for KeyEvent {
@@ -33,7 +33,7 @@ impl KeyEvent {
 }
 
 /// a unique key (non modifier keys)
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize, Hash)]
 pub enum KeyCode {
     /// Backspace.
     #[serde(rename = "backspace")]
@@ -119,7 +119,7 @@ impl TryFrom<TermionKey> for KeyCode {
 ///
 /// no shift, as it is not a real modifier
 /// check if shift might be pressed yourself using is_upper_case
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize, Hash)]
 pub enum KeyModifier {
     #[serde(rename = "alt")]
     Alt,

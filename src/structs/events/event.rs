@@ -16,6 +16,8 @@ pub enum Event {
     /// request that requires a response
     RequestPacket(Packet<Request, Response>),
     /// message sent from a component
+    Focus,
+    Unfocus,
     Message {
         sender: Discriminator,
         target: Discriminator,
@@ -35,12 +37,55 @@ impl TryFrom<TermionEvent> for Event {
     type Error = crate::Error;
 }
 
-impl Event {
-    pub fn subscriptions(&self) -> &[Subscription] {
+impl Clone for Event {
+    fn clone(&self) -> Self {
         match self {
-            Self::KeyPress(_keyevent) => &[Subscription::AllKeyPresses],
-            Self::Message { .. } => &[Subscription::AllMessages],
-            _ => &[],
+            Self::KeyPress(key) => Self::KeyPress(*key),
+            Self::MouseEvent(mouse) => Self::MouseEvent(*mouse),
+            Self::ScreenResize(x, y) => Self::ScreenResize(*x, *y),
+            Self::Focus => Self::Focus,
+            Self::Unfocus => Self::Unfocus,
+            Self::Message {
+                sender,
+                target,
+                content,
+            } => Self::Message {
+                sender: sender.clone(),
+                target: target.clone(),
+                content: content.clone(),
+            },
+            Self::RequestPacket(_) => panic!("bad clone"),
+        }
+    }
+}
+
+impl Event {
+    pub fn subscriptions(&self) -> Vec<Subscription> {
+        match self {
+            Self::KeyPress(key) => vec![
+                Subscription::AllKeyPresses,
+                Subscription::SpecificKeyPress { key: *key },
+                Subscription::SpecificKeyCode { code: key.code },
+                Subscription::SpecificKeyModifier {
+                    modifier: key.modifier,
+                },
+            ],
+            Self::Message { sender, .. } => vec![
+                Subscription::AllMessages,
+                Subscription::SpecificMessage {
+                    source: sender.clone(),
+                },
+            ],
+            Self::MouseEvent(mouse) => vec![
+                Subscription::AllMouseEvents,
+                Subscription::SpecificMouseEvent {
+                    mouse: mouse.r#type,
+                },
+            ],
+            Self::ScreenResize(..) => vec![Subscription::ScreenResize],
+            Self::Focus => vec![Subscription::Focused],
+            Self::Unfocus => vec![Subscription::Unfocused],
+            Self::RequestPacket(_) => Vec::new(),
         }
     }
 

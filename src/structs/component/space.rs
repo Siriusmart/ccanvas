@@ -75,9 +75,9 @@ impl Space {
 
             let arc = arc.clone();
             // pass the event to master space
-            tokio::spawn(async move {
-                arc.pass(&mut event).await;
-            });
+            // tokio::spawn(async move {
+            arc.pass(&mut event).await;
+            // });
         }
     }
 
@@ -349,35 +349,44 @@ impl Component for Space {
         }
 
         // all components listening to this event
-        let targets = self.passes.lock().await.subscribers(event.subscriptions());
+        let targets = self.passes.lock().await.subscribers(&event.subscriptions());
 
-        // repeat until someone decide to capture the event
-        for target in targets {
-            let res = self
-                .processes
-                .lock()
-                .await
-                .find_by_discrim(target.discrim())
-                .unwrap()
-                .pass(event)
-                .await;
-            let res = res.evaluate().await;
-            if !res {
-                return false.into();
+        let processes = self.processes.clone();
+        let mut event = event.clone();
+        let subspaces = self.subspaces.clone();
+        let focus = self.focus.clone();
+        let uneval = tokio::spawn(async move {
+            // repeat until someone decide to capture the event
+            for target in targets {
+                let res = processes
+                    .lock()
+                    .await
+                    .find_by_discrim(target.discrim())
+                    .unwrap()
+                    .pass(&mut event)
+                    .await;
+                let res = res.evaluate().await;
+                if !res {
+                    return false;
+                }
             }
-        }
 
-        // if all went well then continue to pass down into subspaces
-        if let Focus::Children(discrim) = &*self.focus.lock().await {
-            self.subspaces
-                .lock()
-                .await
-                .find_by_discrim(discrim)
-                .unwrap()
-                .pass(event)
-                .await;
-        }
+            // if all went well then continue to pass down into subspaces
+            if let Focus::Children(discrim) = &*focus.lock().await {
+                subspaces
+                    .lock()
+                    .await
+                    .find_by_discrim(discrim)
+                    .unwrap()
+                    .pass(&mut event)
+                    .await
+                    .evaluate()
+                    .await;
+            }
 
-        true.into()
+            true
+        });
+
+        Unevaluated::Unevaluated(uneval)
     }
 }

@@ -295,7 +295,7 @@ impl Process {
                         // send a response to the request
                         // but requires no confirmation
                         // because the response is already a sort of confirmation
-                        responder.send(res).unwrap();
+                        let _ = responder.send(res);
                     });
                 }
             })
