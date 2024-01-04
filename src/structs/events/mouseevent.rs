@@ -7,9 +7,8 @@ pub struct MouseEvent {
     /// where the mouse event is
     x: u32,
     y: u32,
-    #[serde(rename = "type")]
     /// what kind of event it is
-    pub r#type: MouseType,
+    pub mousetype: MouseType,
 }
 
 impl From<event::MouseEvent> for MouseEvent {
@@ -18,17 +17,17 @@ impl From<event::MouseEvent> for MouseEvent {
             event::MouseEvent::Hold(x, y) => Self {
                 x: x as u32 - 1,
                 y: y as u32 - 1,
-                r#type: MouseType::Hold,
+                mousetype: MouseType::Hold,
             },
             event::MouseEvent::Release(x, y) => Self {
                 x: x as u32 - 1,
                 y: y as u32 - 1,
-                r#type: MouseType::Release,
+                mousetype: MouseType::Release,
             },
-            event::MouseEvent::Press(r#type, x, y) => Self {
+            event::MouseEvent::Press(mousetype, x, y) => Self {
                 x: x as u32 - 1,
                 y: y as u32 - 1,
-                r#type: r#type.into(),
+                mousetype: mousetype.into(),
             },
         }
     }
@@ -37,22 +36,29 @@ impl From<event::MouseEvent> for MouseEvent {
 /// what kind of mouse event it is
 #[derive(Hash, PartialEq, Eq, Serialize, Deserialize, Debug, Clone, Copy)]
 pub enum MouseType {
+    #[serde(rename = "left")]
     /// The left mouse button.
     Left,
+    #[serde(rename = "right")]
     /// The right mouse button.
     Right,
+    #[serde(rename = "middle")]
     /// The middle mouse button.
     Middle,
+    #[serde(rename = "wheelup")]
     /// Mouse wheel is going up.
     ///
     /// This event is typically only used with Mouse::Press.
     WheelUp,
+    #[serde(rename = "wheeldown")]
     /// Mouse wheel is going down.
     ///
     /// This event is typically only used with Mouse::Press.
     WheelDown,
+    #[serde(rename = "release")]
     /// mouse release
     Release,
+    #[serde(rename = "hold")]
     /// is only emitted when u move the mouse, and only applies to left click
     Hold,
 }

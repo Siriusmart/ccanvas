@@ -45,7 +45,7 @@ impl EventSerde {
                 target: target.clone(),
                 content: content.clone(),
             },
-            Event::Focus => Self::Focused,
+            Event::Focus { .. } => Self::Focused,
             Event::Unfocus => Self::Unfocused,
             Event::RequestPacket(_) => unreachable!("should not happend"),
         }

@@ -94,6 +94,8 @@ impl Process {
         let (responder_send, mut responder_recv): (UnboundedSender<Response>, _) =
             mpsc::unbounded_channel();
 
+        let (set_socket_send, set_socket_recv): (oneshot::Sender<()>, _) = oneshot::channel();
+
         // the responder task recieve Response
         // serialise it and send it to the component, if it specified a socket to send to
         let responder = {
@@ -103,6 +105,7 @@ impl Process {
             tokio::spawn(async move {
                 // by default there is no socket
                 let mut socket = None;
+                let mut socket_confirm = Some(set_socket_send);
                 // let child = child;
 
                 while let Some(res) = responder_recv.recv().await {
@@ -111,11 +114,16 @@ impl Process {
                     // is sent by the component
                     if let ResponseContent::SetSocket(path) = res.content() {
                         socket = Some(path.to_owned());
+                        if socket_confirm.is_some() {
+                            let _ = std::mem::take(&mut socket_confirm).unwrap().send(());
+                        }
                         continue;
                     }
 
                     // only send a message when a socket is specified
                     if let Some(socket) = &socket {
+                        #[cfg(feature = "log")]
+                        log::info!("{discrim:?} sent {res:?}");
                         let socket = socket.clone();
                         let child = child.clone();
                         let discrim = discrim.clone();
@@ -180,6 +188,9 @@ impl Process {
                         Err(_) => continue,
                     };
 
+                    #[cfg(feature = "log")]
+                    log::info!("{discrim:?} recieved {request:?}");
+
                     // modify requests
                     match request.content_mut() {
                         RequestContent::ConfirmRecieve { id, pass } => {
@@ -213,14 +224,12 @@ impl Process {
                                 component: Some(discrim.clone()),
                             };
                             *request.target_mut() = discrim.clone().immediate_parent().unwrap();
-                            responder
-                                .send(Response::new_with_request(
-                                    ResponseContent::Success {
-                                        content: ResponseSuccess::SubscribeAdded,
-                                    },
-                                    *request.id(),
-                                ))
-                                .unwrap();
+                            let _ = responder.send(Response::new_with_request(
+                                ResponseContent::Success {
+                                    content: ResponseSuccess::SubscribeAdded,
+                                },
+                                *request.id(),
+                            ));
                         }
                         RequestContent::Unsubscribe {
                             channel,
@@ -235,33 +244,21 @@ impl Process {
                                 component: Some(discrim.clone()),
                             };
                             *request.target_mut() = discrim.clone().immediate_parent().unwrap();
-                            responder
-                                .send(Response::new_with_request(
-                                    ResponseContent::Success {
-                                        content: ResponseSuccess::SubscribeRemoved,
-                                    },
-                                    *request.id(),
-                                ))
-                                .unwrap();
                         }
                         RequestContent::SetSocket { path } => {
                             // these requests goes to self
-                            responder
-                                .send(Response::new_with_request(
-                                    ResponseContent::SetSocket(storage.path().join(path)),
-                                    *request.id(),
-                                ))
-                                .unwrap();
+                            let _ = responder.send(Response::new_with_request(
+                                ResponseContent::SetSocket(storage.path().join(path)),
+                                *request.id(),
+                            ));
 
-                            responder
-                                .send(Response::new_with_request(
-                                    ResponseContent::Success {
-                                        // this can never fail
-                                        content: ResponseSuccess::ListenerSet,
-                                    },
-                                    *request.id(), // this is a response
-                                ))
-                                .unwrap();
+                            let _ = responder.send(Response::new_with_request(
+                                ResponseContent::Success {
+                                    // this can never fail
+                                    content: ResponseSuccess::ListenerSet,
+                                },
+                                *request.id(), // this is a response
+                            ));
                             continue;
                         }
                         RequestContent::Drop { discrim: to_drop } => {
@@ -284,6 +281,7 @@ impl Process {
                         }
                         // mark self as sender
                         RequestContent::Message { sender, .. } => *sender = discrim.clone(),
+                        RequestContent::NewSpace { .. } | RequestContent::FocusAt => {}
                     }
 
                     let responder = responder.clone();
@@ -300,6 +298,8 @@ impl Process {
                 }
             })
         };
+
+        let _ = set_socket_recv.await;
 
         Ok(Self {
             child,
@@ -328,25 +328,23 @@ impl Process {
                     target: target.clone(),
                     content: content.clone(),
                 };
-                packet
-                    .respond(Response::new_with_request(
-                        ResponseContent::Success {
-                            content: ResponseSuccess::MessageDelivered,
-                        },
-                        *packet.get().id(),
-                    ))
-                    .unwrap();
+                let _ = packet.respond(Response::new_with_request(
+                    ResponseContent::Success {
+                        content: ResponseSuccess::MessageDelivered,
+                    },
+                    *packet.get().id(),
+                ));
                 // unwraps the request, and pass to self as an event
                 // which will then get sent to the client as a normal event
                 let _ = self.pass(&mut event).await;
             }
             // spawn should be passed to spaces, no processes
-            RequestContent::Spawn { .. } => packet
-                .respond(Response::new_with_request(
+            RequestContent::Spawn { .. } => {
+                let _ = packet.respond(Response::new_with_request(
                     ResponseContent::Undelivered,
                     *packet.get().id(),
-                ))
-                .unwrap(),
+                ));
+            }
             // confirmreceive gets filtered out and handles in the listener loop
             // so we will never get it
             RequestContent::ConfirmRecieve { .. }
@@ -354,6 +352,8 @@ impl Process {
             | RequestContent::Drop { .. }
             | RequestContent::Subscribe { .. }
             | RequestContent::SetSocket { .. }
+            | RequestContent::NewSpace { .. }
+            | RequestContent::FocusAt
             | RequestContent::Render { .. } => {
                 unreachable!("not a real request")
             }
@@ -388,6 +388,8 @@ impl Component for Process {
     }
 
     async fn pass(&self, event: &mut Event) -> Unevaluated<bool> {
+        #[cfg(feature = "log")]
+        log::debug!("{:?} got event {event:?}", self.discrim);
         // requestpacket is a request, not an event in a real sense
         // and it doesnt serialise into EventSerde either
         // so best just handle it out and filter it first

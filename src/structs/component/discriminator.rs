@@ -61,4 +61,9 @@ impl Discriminator {
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
+
+    /// check if self starts with other
+    pub fn starts_with(&self, other: &Self) -> bool {
+        self.0.starts_with(&other.0)
+    }
 }

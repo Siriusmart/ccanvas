@@ -75,9 +75,9 @@ impl Space {
 
             let arc = arc.clone();
             // pass the event to master space
-            // tokio::spawn(async move {
-            arc.pass(&mut event).await;
-            // });
+            tokio::spawn(async move {
+                arc.pass(&mut event).await;
+            });
         }
     }
 
@@ -115,10 +115,57 @@ impl Component for Space {
     }
 
     async fn pass(&self, event: &mut Event) -> Unevaluated<bool> {
+        #[cfg(feature = "log")]
+        log::debug!("{:?} got event {event:?}", self.discrim);
         match event {
             // if the target is self
             Event::RequestPacket(req) if req.get().target() == self.discrim() => {
                 match req.get().content() {
+                    RequestContent::FocusAt => {
+                        #[cfg(feature = "log")]
+                        log::debug!("{:?} locking focus", self.discrim);
+                        let mut focus = self.focus.lock().await;
+                        #[cfg(feature = "log")]
+                        log::debug!("{:?} locked focus", self.discrim);
+                        if let Focus::Children(discrim) = &*focus {
+                            #[cfg(feature = "log")]
+                            log::debug!("{:?} locking subspaces", self.discrim);
+                            self.subspaces
+                                .lock()
+                                .await
+                                .find_by_discrim(discrim)
+                                .unwrap()
+                                .pass(&mut Event::Unfocus)
+                                .await;
+                            #[cfg(feature = "log")]
+                            log::debug!("{:?} locked subspaces", self.discrim);
+                            #[cfg(feature = "log")]
+                            log::debug!("{:?} unlocked subspaces", self.discrim);
+                            *focus = Focus::This;
+                        }
+                        #[cfg(feature = "log")]
+                        log::debug!("{:?} unlocked focus", self.discrim);
+                        let _ = req.respond(Response::new_with_request(
+                            ResponseContent::Success {
+                                content: ResponseSuccess::FocusChanged,
+                            },
+                            *req.get().id(),
+                        ));
+
+                        return false.into();
+                    }
+                    RequestContent::NewSpace { label } => {
+                        let space = Space::new_with_parent(label.clone(), &self.discrim).await;
+                        let _ = req.respond(Response::new_with_request(
+                            ResponseContent::Success {
+                                content: ResponseSuccess::SpaceCreated {
+                                    discrim: space.discrim.clone(),
+                                },
+                            },
+                            *req.get().id(),
+                        ));
+                        self.subspaces.lock().await.insert(space);
+                    }
                     // spawn a new process
                     RequestContent::Spawn {
                         command,
@@ -135,25 +182,24 @@ impl Component for Space {
                         .await
                         {
                             Ok(process) => {
-                                req.respond(Response::new_with_request(
+                                let _ = req.respond(Response::new_with_request(
                                     ResponseContent::Success {
                                         content: ResponseSuccess::Spawned {
                                             discrim: process.discrim().clone(),
                                         },
                                     },
                                     *req.get().id(),
-                                ))
-                                .unwrap();
+                                ));
                                 self.processes.lock().await.insert(process);
                             }
-                            Err(_) => req
-                                .respond(Response::new_with_request(
+                            Err(_) => {
+                                let _ = req.respond(Response::new_with_request(
                                     ResponseContent::Error {
                                         content: ResponseError::SpawnFailed,
                                     },
                                     *req.get().id(),
-                                ))
-                                .unwrap(),
+                                ));
+                            }
                         }
                     }
                     // add an item to passes
@@ -170,22 +216,20 @@ impl Component for Space {
                                     channel.clone(),
                                     PassItem::new(discrim.clone(), *priority),
                                 );
-                                req.respond(Response::new_with_request(
+                                let _ = req.respond(Response::new_with_request(
                                     ResponseContent::Success {
                                         content: ResponseSuccess::SubscribeAdded,
                                     },
                                     *req.get().id(),
-                                ))
-                                .unwrap();
+                                ));
                             } else {
                                 // or else just throw a not found
-                                req.respond(Response::new_with_request(
+                                let _ = req.respond(Response::new_with_request(
                                     ResponseContent::Error {
                                         content: ResponseError::ComponentNotFound,
                                     },
                                     *req.get().id(),
-                                ))
-                                .unwrap();
+                                ));
                             }
                         }
                     }
@@ -202,22 +246,20 @@ impl Component for Space {
                                     .lock()
                                     .await
                                     .unsubscribe(channel.clone(), discrim);
-                                req.respond(Response::new_with_request(
+                                let _ = req.respond(Response::new_with_request(
                                     ResponseContent::Success {
                                         content: ResponseSuccess::SubscribeRemoved,
                                     },
                                     *req.get().id(),
-                                ))
-                                .unwrap();
+                                ));
                             } else {
                                 // or else just throw a not found
-                                req.respond(Response::new_with_request(
+                                let _ = req.respond(Response::new_with_request(
                                     ResponseContent::Error {
                                         content: ResponseError::ComponentNotFound,
                                     },
                                     *req.get().id(),
-                                ))
-                                .unwrap();
+                                ));
                             }
                         }
                     }
@@ -235,35 +277,32 @@ impl Component for Space {
                                     *self.focus.lock().await = Focus::This
                                 }
                             } else {
-                                req.respond(Response::new_with_request(
+                                let _ = req.respond(Response::new_with_request(
                                     ResponseContent::Error {
                                         content: ResponseError::ComponentNotFound,
                                     },
                                     *req.get().id(),
-                                ))
-                                .unwrap();
+                                ));
                                 return false.into();
                             }
-                            req.respond(Response::new_with_request(
+                            let _ = req.respond(Response::new_with_request(
                                 ResponseContent::Success {
                                     content: ResponseSuccess::Dropped,
                                 },
                                 *req.get().id(),
-                            ))
-                            .unwrap();
+                            ));
                         }
                     }
                     RequestContent::Render { content, flush } => {
                         // does rendering stuff, no explainations needed
                         content.draw(*flush);
 
-                        req.respond(Response::new_with_request(
+                        let _ = req.respond(Response::new_with_request(
                             ResponseContent::Success {
                                 content: ResponseSuccess::Rendered,
                             },
                             *req.get().id(),
-                        ))
-                        .unwrap();
+                        ));
                     }
                     RequestContent::Message {
                         content,
@@ -275,13 +314,12 @@ impl Component for Space {
                         let target = target.clone();
                         let content = content.clone();
 
-                        req.respond(Response::new_with_request(
+                        let _ = req.respond(Response::new_with_request(
                             ResponseContent::Success {
                                 content: ResponseSuccess::MessageDelivered,
                             },
                             *req.get().id(),
-                        ))
-                        .unwrap();
+                        ));
 
                         // now pass the event to self
                         *event = Event::Message {
@@ -310,6 +348,58 @@ impl Component for Space {
                 // aka the next item it should pass to in order to get the request
                 // to its intended target
                 if let Some(child) = self.discrim.immediate_child(req.get().target().clone()) {
+                    if req.get().content() == &RequestContent::FocusAt {
+                        #[cfg(feature = "log")]
+                        log::debug!("{:?} locking focus", self.discrim);
+                        let mut focus = self.focus.lock().await;
+                        #[cfg(feature = "log")]
+                        log::debug!("{:?} locked focus", self.discrim);
+                        #[cfg(feature = "log")]
+                        log::debug!("{:?} locking subspaces", self.discrim);
+                        let subspaces = self.subspaces.lock().await;
+                        #[cfg(feature = "log")]
+                        log::debug!("{:?} locked subspaces", self.discrim);
+
+                        if !subspaces.contains(&child) {
+                            let _ = req.respond(Response::new_with_request(
+                                ResponseContent::Error {
+                                    content: ResponseError::ComponentNotFound,
+                                },
+                                *req.get().id(),
+                            ));
+                        }
+
+                        if let Focus::Children(focused) = &*focus {
+                            if req.get().target().starts_with(focused) {
+                                let subspace = subspaces.find_by_discrim_arc(&child).unwrap();
+                                subspace.pass(event).await;
+                            } else {
+                                subspaces
+                                    .find_by_discrim(focused)
+                                    .unwrap()
+                                    .pass(&mut Event::Unfocus)
+                                    .await;
+                                *focus = Focus::Children(child.clone());
+
+                                let child = subspaces.find_by_discrim(&child).unwrap();
+                                child.pass(event).await;
+                                child.pass(&mut Event::Focus).await;
+                            }
+                        } else {
+                            *focus = Focus::Children(child.clone());
+                            let child = subspaces.find_by_discrim(&child).unwrap();
+                            child.pass(event).await;
+                            child.pass(&mut Event::Focus).await;
+                        }
+
+                        #[cfg(feature = "log")]
+                        log::debug!("{:?} unlocked focus", self.discrim);
+                        #[cfg(feature = "log")]
+                        log::debug!("{:?} unlocked subspaces", self.discrim);
+
+                        return false.into();
+                    }
+
                     // no 2 components are the same, so order shouldnt matter
                     if let Some(proc) = self.processes.lock().await.find_by_discrim(&child) {
                         if let Some(subscriptions) = req.get().subscriptions() {
@@ -323,21 +413,20 @@ impl Component for Space {
                             {
                                 proc.pass(event).await;
                             } else {
-                                req.respond(Response::new_with_request(
+                                let _ = req.respond(Response::new_with_request(
                                     ResponseContent::Undelivered,
                                     *req.get().id(),
-                                ))
-                                .unwrap();
+                                ));
                             }
                         } else {
                             proc.pass(event).await;
                         }
-                    } else if let Some(space) = self.subspaces.lock().await.find_by_discrim(&child)
+                    } else if let Some(space) =
+                        self.subspaces.lock().await.find_by_discrim_arc(&child)
                     {
                         space.pass(event).await;
                     } else {
-                        req.respond(Response::new(ResponseContent::Undelivered))
-                            .unwrap();
+                        let _ = req.respond(Response::new(ResponseContent::Undelivered));
                     }
 
                     return false.into();
@@ -355,33 +444,55 @@ impl Component for Space {
         let mut event = event.clone();
         let subspaces = self.subspaces.clone();
         let focus = self.focus.clone();
+        #[cfg(feature = "log")]
+        let discrim = self.discrim.clone();
         let uneval = tokio::spawn(async move {
             // repeat until someone decide to capture the event
             for target in targets {
+                #[cfg(feature = "log")]
+                log::debug!("passing {event:?} to {target:?}");
                 let res = processes
                     .lock()
                     .await
-                    .find_by_discrim(target.discrim())
+                    .find_by_discrim_arc(target.discrim())
                     .unwrap()
                     .pass(&mut event)
                     .await;
                 let res = res.evaluate().await;
                 if !res {
+                    #[cfg(feature = "log")]
+                    log::debug!("event {event:?} captured by {target:?}");
                     return false;
                 }
             }
 
+            if event == Event::Focus {
+                return false;
+            }
+
             // if all went well then continue to pass down into subspaces
-            if let Focus::Children(discrim) = &*focus.lock().await {
-                subspaces
+            #[cfg(feature = "log")]
+            log::debug!("{:?} locking focus", discrim);
+            let focus = focus.lock().await.clone();
+            #[cfg(feature = "log")]
+            log::debug!("{:?} locked focus", discrim);
+            #[cfg(feature = "log")]
+            log::debug!("{:?} unlocked focus", discrim);
+            if let Focus::Children(discrim) = focus {
+                #[cfg(feature = "log")]
+                log::debug!("{:?} locking subspaces", discrim);
+                let subspace = subspaces
                     .lock()
                     .await
-                    .find_by_discrim(discrim)
-                    .unwrap()
-                    .pass(&mut event)
-                    .await
-                    .evaluate()
-                    .await;
+                    .find_by_discrim_arc(&discrim)
+                    .unwrap();
+                #[cfg(feature = "log")]
+                log::debug!("{:?} locked subspaces", discrim);
+                #[cfg(feature = "log")]
+                log::debug!("{:?} unlocked subspaces", discrim);
+                #[cfg(feature = "log")]
+                log::debug!("passing {event:?} to {discrim:?}");
+                subspace.pass(&mut event).await.evaluate().await;
             }
 
             true

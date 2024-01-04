@@ -79,11 +79,11 @@ impl Event {
             Self::MouseEvent(mouse) => vec![
                 Subscription::AllMouseEvents,
                 Subscription::SpecificMouseEvent {
-                    mouse: mouse.r#type,
+                    mouse: mouse.mousetype,
                 },
             ],
             Self::ScreenResize(..) => vec![Subscription::ScreenResize],
-            Self::Focus => vec![Subscription::Focused],
+            Self::Focus { .. } => vec![Subscription::Focused],
             Self::Unfocus => vec![Subscription::Unfocused],
             Self::RequestPacket(_) => Vec::new(),
         }

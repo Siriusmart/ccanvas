@@ -30,6 +30,11 @@ impl<T: Component> Collection<T> {
         self.items.get(discrim).map(|item| item.as_ref())
     }
 
+    /// return max one element with matching discriminator, returning an arc
+    pub fn find_by_discrim_arc(&self, discrim: &Discriminator) -> Option<Arc<T>> {
+        self.items.get(discrim).cloned()
+    }
+
     /// return max one element with matching discriminator (mutable)
     // pub fn find_by_discrim_mut(&mut self, discrim: &Discriminator) -> Option<&mut T> {
     //     self.items.get_mut(discrim)

@@ -62,6 +62,14 @@ pub enum RequestContent {
         sender: Discriminator,
         target: Discriminator,
     },
+
+    /// create a new space at a space
+    #[serde(rename = "new space")]
+    NewSpace { label: String },
+
+    /// focus a specific space
+    #[serde(rename = "focus at")]
+    FocusAt,
 }
 
 impl RequestContent {

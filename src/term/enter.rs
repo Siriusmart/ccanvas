@@ -33,4 +33,23 @@ pub async fn enter() {
     write!(screen, "{}", termion::clear::All).unwrap();
     screen.flush().unwrap();
     let _ = unsafe { SCREEN.set(screen) };
+
+    #[cfg(feature = "log")]
+    {
+        let log_file = dirs::data_dir().unwrap().join("ccanvas.log");
+        simplelog::WriteLogger::init(
+            log::LevelFilter::Trace,
+            simplelog::ConfigBuilder::new()
+                .set_max_level(log::LevelFilter::Trace)
+                .set_location_level(log::LevelFilter::Trace)
+                .build(),
+            std::fs::OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .open(log_file)
+                .unwrap(),
+        )
+        .unwrap();
+    }
 }

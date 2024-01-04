@@ -43,7 +43,7 @@ ccanvas is structured into "components"
 
 Each component is referenced by its unique identifying ***discriminator***, which is just a path of numbers, such as `/1/2/3/4`. `/1` is called the ***master space***.
 
-- New spaces can be created (WIP) and new processes can be spawned in.
+- New spaces can be created and new processes can be spawned in.
 - Any component can be ***dropped*** and removed.
 - To exit the canvas, call ***drop*** on `/1.`
 
@@ -65,7 +65,4 @@ The space will then decide where should the event be passed to. First it will pa
 
 ## TODO
 
-Here are some of the planned features not yet implemented - in order of priority.
-
-- Create, focus, and manage spaces.
-- Space focus/unfocus events.
+One more feature needed before I work on a window manager component - get properties calls, such as getting screen size without waiting for a resize event.

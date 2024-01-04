@@ -1,7 +1,7 @@
 use super::Discriminator;
 
 /// if the space is focusing on itself or a child subspace
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone)]
 pub enum Focus {
     /// render self, dont pass events further down
     This,

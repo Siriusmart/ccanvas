@@ -32,4 +32,12 @@ pub enum ResponseSuccess {
     /// message delivered ot target
     #[serde(rename = "message delivered")]
     MessageDelivered,
+
+    /// space created with discrim
+    #[serde(rename = "space created")]
+    SpaceCreated { discrim: Discriminator },
+
+    /// focus changed successfully
+    #[serde(rename = "focus changed")]
+    FocusChanged,
 }
